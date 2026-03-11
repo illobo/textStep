@@ -201,7 +201,11 @@ fn gauge_spans<'a>(value: f32, width: usize, fill_style: Style, empty_style: Sty
     }
 }
 
-/// Build a compact status line showing: Label Pat[N] Kit[N] Loop[N]
+/// Pattern slot key labels (QWERTYUIOP = patterns 1-10).
+const PATTERN_KEYS: [&str; 10] = ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"];
+
+/// Build a status line with pattern/kit selectors:
+///   SA | Pattern: q w e r t y u i o p | Kit: 1 2 3 4 5 6 7 8
 fn status_line<'a>(
     label: &str,
     active_pattern: usize,
@@ -213,38 +217,41 @@ fn status_line<'a>(
 ) -> Line<'a> {
     let mut spans: Vec<Span<'a>> = Vec::new();
 
-    // Section label — highlighted when focused
+    // Section label
     let label_style = if is_focused {
-        Style::default()
-            .fg(theme::CYAN)
-            .add_modifier(Modifier::BOLD)
+        Style::default().fg(theme::CYAN).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(theme::DIM_TEXT)
     };
-    spans.push(Span::styled(format!("{}: ", label), label_style));
+    spans.push(Span::styled(format!("{}", label), label_style));
 
-    // Pattern indicator (compact)
-    let pattern_display = if let Some(queued) = queued_pattern {
-        format!("Pat[{}→{}]", active_pattern + 1, queued + 1)
-    } else {
-        format!("Pat[{}]", active_pattern + 1)
-    };
-    let pattern_style = if is_focused {
-        Style::default().fg(theme::AMBER)
-    } else {
-        Style::default().fg(theme::TEXT)
-    };
-    spans.push(Span::styled(pattern_display, pattern_style));
+    spans.push(Span::styled("  Pattern: ", Style::default().fg(theme::DIM_TEXT)));
 
-    // Kit indicator (compact)
-    spans.push(Span::styled(
-        format!(" Kit[{}]", active_kit + 1),
-        if is_focused {
-            Style::default().fg(theme::AMBER)
+    // Pattern selector: q w e r t y u i o p
+    for (i, key) in PATTERN_KEYS.iter().enumerate() {
+        let style = if i == active_pattern {
+            Style::default().fg(Color::Black).bg(theme::CYAN).add_modifier(Modifier::BOLD)
+        } else if queued_pattern == Some(i) {
+            Style::default().fg(Color::Black).bg(theme::GOLD).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(theme::TEXT)
-        },
-    ));
+            Style::default().fg(theme::DIM_TEXT)
+        };
+        spans.push(Span::styled(*key, style));
+        if i < 9 { spans.push(Span::raw(" ")); }
+    }
+
+    spans.push(Span::styled(" \u{2502} Kit: ", Style::default().fg(theme::DIM_TEXT)));
+
+    // Kit selector: 1 2 3 4 5 6 7 8
+    for i in 0..8u8 {
+        let style = if i as usize == active_kit {
+            Style::default().fg(Color::Black).bg(theme::CYAN).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme::DIM_TEXT)
+        };
+        spans.push(Span::styled(format!("{}", i + 1), style));
+        if i < 7 { spans.push(Span::raw(" ")); }
+    }
 
     // Loop indicator
     let loop_style = if loop_info.contains("--") {
@@ -254,7 +261,7 @@ fn status_line<'a>(
     } else {
         Style::default().fg(theme::TEXT)
     };
-    spans.push(Span::styled(format!(" {}", loop_info), loop_style));
+    spans.push(Span::styled(format!("  {}", loop_info), loop_style));
 
     Line::from(spans)
 }

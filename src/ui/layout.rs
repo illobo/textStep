@@ -102,10 +102,45 @@ pub fn compute_dual_layout(total: Rect, vis: &PanelVisibility) -> DualSynthLayou
         PanelSlot { expanded_height: WAVEFORM_HEIGHT,     is_visible: vis.waveform,      growable: false },
     ];
 
-    // Calculate total requested height (before overflow handling)
+    // Make a mutable copy of visibility so we can auto-collapse on overflow
+    let mut vis_effective: [bool; 7] = [
+        panels[0].is_visible, panels[1].is_visible,
+        panels[2].is_visible, panels[3].is_visible,
+        panels[4].is_visible, panels[5].is_visible,
+        panels[6].is_visible,
+    ];
+
+    let available = total.height;
+
+    // Auto-collapse panels when terminal is too small, lowest priority first.
+    // Priority order for collapsing (first to collapse → last):
+    // waveform(6), drum_knobs(5), synth_b_grid(3), synth_b_knobs(2),
+    // synth_a_grid(1), synth_a_knobs(0), drum_grid(4)
+    let collapse_order: [usize; 7] = [6, 5, 3, 2, 1, 0, 4];
+    loop {
+        let mut used: u16 = fixed;
+        for (i, p) in panels.iter().enumerate() {
+            if vis_effective[i] {
+                used = used.saturating_add(p.expanded_height);
+            } else {
+                used = used.saturating_add(COLLAPSED_PANEL_HEIGHT);
+            }
+        }
+        if used <= available {
+            break;
+        }
+        // Find next panel to collapse
+        if let Some(&idx) = collapse_order.iter().find(|&&i| vis_effective[i]) {
+            vis_effective[idx] = false;
+        } else {
+            break; // everything collapsed, nothing more we can do
+        }
+    }
+
+    // Calculate total requested height
     let mut used: u16 = fixed;
-    for p in &panels {
-        if p.is_visible {
+    for (i, p) in panels.iter().enumerate() {
+        if vis_effective[i] {
             used = used.saturating_add(p.expanded_height);
         } else {
             used = used.saturating_add(COLLAPSED_PANEL_HEIGHT);
@@ -113,18 +148,17 @@ pub fn compute_dual_layout(total: Rect, vis: &PanelVisibility) -> DualSynthLayou
     }
 
     // Compute extra space to distribute to growable panels
-    let available = total.height;
     let extra = if available > used { available - used } else { 0 };
 
     // Count growable visible panels
-    let growable_count = panels.iter().filter(|p| p.is_visible && p.growable).count() as u16;
+    let growable_count = panels.iter().enumerate().filter(|(i, p)| vis_effective[*i] && p.growable).count() as u16;
     let extra_per_growable = if growable_count > 0 { extra / growable_count } else { 0 };
     let mut extra_remainder = if growable_count > 0 { extra % growable_count } else { 0 };
 
     // Assign heights for each panel
     let mut heights: [u16; 7] = [0; 7];
     for (i, p) in panels.iter().enumerate() {
-        if p.is_visible {
+        if vis_effective[i] {
             heights[i] = p.expanded_height;
             if p.growable {
                 heights[i] += extra_per_growable;
@@ -138,30 +172,36 @@ pub fn compute_dual_layout(total: Rect, vis: &PanelVisibility) -> DualSynthLayou
         }
     }
 
-    // Build rects by walking y offsets
+    // Build rects by walking y offsets, clamping to terminal bounds
     let x = total.x;
     let w = total.width;
+    let y_max = total.y + total.height; // first row outside the buffer
     let mut y = total.y;
 
     // Transport
-    let transport = Rect::new(x, y, w, TRANSPORT_HEIGHT);
-    y += TRANSPORT_HEIGHT;
+    let transport_h = TRANSPORT_HEIGHT.min(y_max.saturating_sub(y));
+    let transport = Rect::new(x, y, w, transport_h);
+    y += transport_h;
 
-    // Helper: allocate a panel rect and advance y
+    // Helper: allocate a panel rect and advance y, clamping to bounds
     let mut panel_rects: [(Rect, Rect); 7] = [(Rect::default(), Rect::default()); 7];
-    for (i, p) in panels.iter().enumerate() {
-        let h = heights[i];
+    for i in 0..panels.len() {
+        let h = heights[i].min(y_max.saturating_sub(y));
+        if h == 0 {
+            continue;
+        }
         let rect = Rect::new(x, y, w, h);
-        if p.is_visible {
-            panel_rects[i] = (rect, Rect::default()); // expanded, no collapsed
+        if vis_effective[i] {
+            panel_rects[i] = (rect, Rect::default());
         } else {
-            panel_rects[i] = (Rect::default(), rect); // no expanded, collapsed
+            panel_rects[i] = (Rect::default(), rect);
         }
         y += h;
     }
 
-    // Activity bar at the bottom
-    let activity_bar = Rect::new(x, y, w, ACTIVITY_BAR_HEIGHT);
+    // Activity bar at the bottom (gets whatever is left, may be 0)
+    let activity_h = ACTIVITY_BAR_HEIGHT.min(y_max.saturating_sub(y));
+    let activity_bar = Rect::new(x, y, w, activity_h);
 
     DualSynthLayout {
         transport,
@@ -300,6 +340,32 @@ mod tests {
             ly.synth_a_knobs_collapsed.y
         };
         assert_eq!(sa_knobs_y, after_transport);
+    }
+
+    #[test]
+    fn small_terminal_no_panic() {
+        // Terminal too small to fit all panels — must not overflow buffer bounds
+        let vis = PanelVisibility::default();
+        let ly = compute_dual_layout(term(22), &vis);
+
+        // Every rect must stay within [0, 22)
+        let all_rects = [
+            ly.transport,
+            ly.synth_a_knobs, ly.synth_a_knobs_collapsed,
+            ly.synth_a_grid, ly.synth_a_grid_collapsed,
+            ly.synth_b_knobs, ly.synth_b_knobs_collapsed,
+            ly.synth_b_grid, ly.synth_b_grid_collapsed,
+            ly.drum_grid, ly.drum_knobs, ly.drum_knobs_collapsed,
+            ly.waveform, ly.waveform_collapsed,
+            ly.activity_bar,
+        ];
+        for r in &all_rects {
+            assert!(
+                r.y + r.height <= 22,
+                "rect {:?} extends past terminal height 22",
+                r,
+            );
+        }
     }
 
     #[test]
