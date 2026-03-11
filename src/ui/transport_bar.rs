@@ -7,12 +7,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use crate::app::{App, FocusSection};
-use crate::sequencer::project::{NUM_KITS, NUM_PATTERNS};
 use crate::sequencer::transport::{PlayState, RecordMode};
 use crate::ui::theme;
-
-const PATTERN_KEYS: [char; 10] = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
-const KIT_KEYS: [char; 8] = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 /// Draws the transport bar: play state, BPM, beat LEDs, swing, record toggle,
 /// pattern/kit selectors, loop indicators, and master level gauges.
@@ -103,35 +99,54 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
 
     let top_line = Line::from(top_spans);
 
-    // ── Line 2: Synth machine selector + loop indicator ──────────
-    let synth_focused = matches!(app.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls);
-    let synth_loop_str = if app.transport.loop_config.enabled {
-        format!("Loop [ON] S:{}", app.transport.loop_config.synth_a_length)
+    // ── Line 2: Synth A status line ───────────────────────────────
+    let synth_a_focused = matches!(app.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls);
+    let synth_a_loop_str = if app.transport.loop_config.enabled {
+        format!("Loop[{}]", app.transport.loop_config.synth_a_length)
     } else {
-        "Loop [OFF]".to_string()
+        "Loop[--]".to_string()
     };
-    let synth_kit_name = app.project.synth_kits.get(app.ui.synth_a.active_kit)
+    let synth_a_kit_name = app.project.synth_kits.get(app.ui.synth_a.active_kit)
         .map(|k| k.name.as_str()).unwrap_or("");
-    let synth_line = machine_selector_line(
-        "Synth",
+    let synth_a_line = status_line(
+        "SA",
         app.ui.synth_a.active_pattern,
         app.ui.synth_a.queued_pattern,
         app.ui.synth_a.active_kit,
-        synth_kit_name,
-        synth_focused,
-        &synth_loop_str,
+        synth_a_kit_name,
+        synth_a_focused,
+        &synth_a_loop_str,
     );
 
-    // ── Line 3: Drum machine selector + loop indicator ───────────
+    // ── Line 3: Synth B status line ───────────────────────────────
+    let synth_b_focused = matches!(app.ui.focus, FocusSection::SynthBGrid | FocusSection::SynthBControls);
+    let synth_b_loop_str = if app.transport.loop_config.enabled {
+        format!("Loop[{}]", app.transport.loop_config.synth_b_length)
+    } else {
+        "Loop[--]".to_string()
+    };
+    let synth_b_kit_name = app.project.synth_kits.get(app.ui.synth_b.active_kit)
+        .map(|k| k.name.as_str()).unwrap_or("");
+    let synth_b_line = status_line(
+        "SB",
+        app.ui.synth_b.active_pattern,
+        app.ui.synth_b.queued_pattern,
+        app.ui.synth_b.active_kit,
+        synth_b_kit_name,
+        synth_b_focused,
+        &synth_b_loop_str,
+    );
+
+    // ── Line 4: Drum status line ──────────────────────────────────
     let drum_focused = matches!(app.ui.focus, FocusSection::DrumGrid | FocusSection::Knobs);
     let drum_loop_str = if app.transport.loop_config.enabled {
-        format!("Loop [ON] D:{}", app.transport.loop_config.drum_length)
+        format!("Loop[{}]", app.transport.loop_config.drum_length)
     } else {
-        "Loop [OFF]".to_string()
+        "Loop[--]".to_string()
     };
     let drum_kit_name = app.current_kit_name();
-    let drum_line = machine_selector_line(
-        "Drum ",
+    let drum_line = status_line(
+        "DR",
         app.ui.active_pattern,
         app.ui.queued_pattern,
         app.ui.active_kit,
@@ -140,7 +155,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
         &drum_loop_str,
     );
 
-    // ── Line 4: Master gauges ────────────────────────────────────
+    // ── Line 5: Master gauges ────────────────────────────────────
     let gauge_label_style = Style::default().fg(theme::DIM_TEXT);
     let gauge_fill_style = Style::default().fg(theme::AMBER);
     let gauge_empty_style = Style::default().fg(theme::SURFACE);
@@ -160,7 +175,13 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
         gauge_spans(sat, 4, gauge_fill_style, gauge_empty_style),
     ]);
 
-    let paragraph = Paragraph::new(vec![top_line, synth_line, drum_line, gauge_line]).block(block);
+    let paragraph = Paragraph::new(vec![
+        top_line,
+        synth_a_line,
+        synth_b_line,
+        drum_line,
+        gauge_line,
+    ]).block(block);
     f.render_widget(paragraph, area);
 }
 
@@ -180,19 +201,19 @@ fn gauge_spans<'a>(value: f32, width: usize, fill_style: Style, empty_style: Sty
     }
 }
 
-/// Build a Line for a machine's pattern + kit selector row with loop indicator.
-fn machine_selector_line<'a>(
+/// Build a compact status line showing: Label Pat[N] Kit[N] Loop[N]
+fn status_line<'a>(
     label: &str,
     active_pattern: usize,
     queued_pattern: Option<usize>,
     active_kit: usize,
-    kit_name: &str,
+    _kit_name: &str,
     is_focused: bool,
     loop_info: &str,
 ) -> Line<'a> {
     let mut spans: Vec<Span<'a>> = Vec::new();
 
-    // Machine label — highlighted when focused
+    // Section label — highlighted when focused
     let label_style = if is_focused {
         Style::default()
             .fg(theme::CYAN)
@@ -200,69 +221,40 @@ fn machine_selector_line<'a>(
     } else {
         Style::default().fg(theme::DIM_TEXT)
     };
-    spans.push(Span::styled(format!("{}  ", label), label_style));
+    spans.push(Span::styled(format!("{}: ", label), label_style));
 
-    // Pattern selector
-    spans.push(Span::styled("Pattern: ", Style::default().fg(theme::TEXT)));
-    for i in 0..NUM_PATTERNS {
-        let is_active = active_pattern == i;
-        let is_queued = queued_pattern == Some(i);
-        let key = PATTERN_KEYS[i];
+    // Pattern indicator (compact)
+    let pattern_display = if let Some(queued) = queued_pattern {
+        format!("Pat[{}→{}]", active_pattern + 1, queued + 1)
+    } else {
+        format!("Pat[{}]", active_pattern + 1)
+    };
+    let pattern_style = if is_focused {
+        Style::default().fg(theme::AMBER)
+    } else {
+        Style::default().fg(theme::TEXT)
+    };
+    spans.push(Span::styled(pattern_display, pattern_style));
 
-        if is_active {
-            spans.push(Span::styled(
-                format!("[{}]", key),
-                Style::default()
-                    .fg(theme::BG)
-                    .bg(theme::AMBER)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        } else if is_queued {
-            spans.push(Span::styled(
-                format!("[{}]", key),
-                Style::default()
-                    .fg(theme::BG)
-                    .bg(theme::GOLD)
-                    .add_modifier(Modifier::BOLD),
-            ));
+    // Kit indicator (compact)
+    spans.push(Span::styled(
+        format!(" Kit[{}]", active_kit + 1),
+        if is_focused {
+            Style::default().fg(theme::AMBER)
         } else {
-            spans.push(Span::styled(format!(" {} ", key), Style::default().fg(theme::DIM_TEXT)));
-        }
-    }
+            Style::default().fg(theme::TEXT)
+        },
+    ));
 
-    spans.push(Span::styled("   Kit: ", Style::default().fg(theme::TEXT)));
-    for i in 0..NUM_KITS {
-        let is_active = active_kit == i;
-        let key = KIT_KEYS[i];
-
-        if is_active {
-            spans.push(Span::styled(
-                format!("[{}]", key),
-                Style::default()
-                    .fg(theme::BG)
-                    .bg(theme::AMBER)
-                    .add_modifier(Modifier::BOLD),
-            ));
-        } else {
-            spans.push(Span::styled(format!(" {} ", key), Style::default().fg(theme::DIM_TEXT)));
-        }
-    }
-
-    // Kit name after selector
-    if !kit_name.is_empty() {
-        spans.push(Span::styled(
-            format!(" {}", kit_name),
-            Style::default().fg(theme::AMBER),
-        ));
-    }
-
-    // Loop indicator at end of row
-    let loop_style = if loop_info.contains("[ON]") {
+    // Loop indicator
+    let loop_style = if loop_info.contains("--") {
+        Style::default().fg(theme::DIM_TEXT)
+    } else if is_focused {
         Style::default().fg(theme::CYAN)
     } else {
-        Style::default().fg(theme::DIM_TEXT)
+        Style::default().fg(theme::TEXT)
     };
-    spans.push(Span::styled(format!("   {}", loop_info), loop_style));
+    spans.push(Span::styled(format!(" {}", loop_info), loop_style));
 
     Line::from(spans)
 }

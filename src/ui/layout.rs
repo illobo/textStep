@@ -6,9 +6,11 @@ use crate::app::PanelVisibility;
 
 // ── Dimension constants ──────────────────────────────────────────────────────
 
-/// Transport bar height (title border + 4 content lines + bottom border).
-/// Will increase to 7 when Task 11 adds Synth A / Synth B / Drum status lines.
-pub const TRANSPORT_HEIGHT: u16 = 6;
+/// Transport bar height (title border + 5 content lines + bottom border).
+/// Line 1: play state + BPM + beat LEDs + swing + record
+/// Line 2-4: Synth A / Synth B / Drum status lines (pattern/kit/loop)
+/// Line 5: master gauges
+pub const TRANSPORT_HEIGHT: u16 = 7;
 
 /// Height of the drum knobs panel (1 label + 5 bars + 1 value + 2 border).
 pub const KNOBS_HEIGHT: u16 = 9;
@@ -333,13 +335,13 @@ mod tests {
             drum_knobs: true,
             waveform: true,
         };
-        // Minimum needed: 6 + 30 + 6 + 30 + 6 + 11 + 9 + 11 + 1 = 110
-        let ly = compute_dual_layout(term(110), &vis);
+        // Minimum needed: 7 + 30 + 6 + 30 + 6 + 11 + 9 + 11 + 1 = 111
+        let ly = compute_dual_layout(term(111), &vis);
 
         // Transport and activity bar should be at expected positions
         assert_eq!(ly.transport.height, TRANSPORT_HEIGHT);
         assert_eq!(ly.activity_bar.height, ACTIVITY_BAR_HEIGHT);
-        assert_eq!(ly.activity_bar.y + ly.activity_bar.height, 110);
+        assert_eq!(ly.activity_bar.y + ly.activity_bar.height, 111);
 
         // All expanded rects should be non-empty
         assert!(ly.synth_a_knobs.height > 0);
