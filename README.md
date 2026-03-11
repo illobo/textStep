@@ -12,7 +12,7 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 [![Audio: CoreAudio](https://img.shields.io/badge/Audio-CoreAudio-green)](https://developer.apple.com/documentation/coreaudio)
 [![TUI: ratatui](https://img.shields.io/badge/TUI-ratatui-purple)](https://ratatui.rs/)
 [![Lines of Code](https://img.shields.io/badge/Lines_of_Code-17k-informational)]()
-[![Tests](https://img.shields.io/badge/Tests-23_passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/Tests-31_passing-brightgreen)]()
 
 ![TextStep Demo](assets/demo.gif)
 
@@ -23,12 +23,13 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 ## Features
 
 - **8 Drum Tracks** — Kick, Snare, Closed HiHat, Open HiHat, Ride, Clap, Cowbell, Tom — each fully synthesized with 8 tweakable sound parameters
-- **Polyphonic Synth** — 2 oscillators + sub, 2 ADSR envelopes, resonant filter, LFO with 6 waveforms, collapsible UI section
+- **Dual Polyphonic Synths** — Synth A + Synth B, each with 2 oscillators + sub, 2 ADSR envelopes, resonant filter, LFO with 6 waveforms, independent patterns and kits
 - **32-Step Sequencer** — 10 patterns and 8 kit slots with per-pattern BPM and swing
 - **Send Effects Chain** — Schroeder reverb, tempo-synced filtered delay, tube saturator, SSL-style glue compressor
 - **Live Performance** — drum pads, real-time recording, pattern queuing, per-pattern BPM
 - **Mouse Support** — click the grid, drag parameters Ableton-style, audition sounds from the activity bar
 - **Project System** — save/load `.tsp` files, standalone kit export, preset browser
+- **Collapsible Panels** — minimize/expand synth, drum knobs, and waveform sections; auto-adapts to small terminals
 - **Spectrum Analyzer** — real-time FFT spectrum display and VU meter with 90s Hi-Fi LED aesthetic
 
 Ships with **10 demo patterns** ready to play: House, Chicago House, Brit House, French House, Dirty House, Trance, Techno, Drum & Bass, Trap, and Moombahton.
@@ -63,7 +64,7 @@ sudo apt-get install libasound2-dev   # Debian/Ubuntu
 Run the tests:
 
 ```bash
-cargo test    # 23 tests, runs in <1s
+cargo test    # 31 tests, runs in <1s
 ```
 
 ### Pre-built Binaries
@@ -99,7 +100,7 @@ xattr -d com.apple.quarantine ./textstep
 | Arrow keys | Move cursor in grid or controls |
 | `Enter` | Toggle step (and advance — hold to fill) |
 | `;` | Cycle parameter page: SYN → AMP → FX |
-| `F2` | Collapse/expand synth section |
+| `F2` | Collapse/expand all synth panels (A + B) |
 | `~` | Toggle spectrum analyzer / VU meter |
 | `?` | Help overlay |
 
@@ -129,7 +130,7 @@ With record enabled and playback running, pad hits write steps at the playhead.
 
 ### Patterns & Kits
 
-**Patterns** — 10 slots, each with its own step data and BPM:
+**Patterns** — 10 slots per section (Synth A, Synth B, Drums), each with its own step data:
 
 | Key | Action |
 |-----|--------|
@@ -144,9 +145,11 @@ With record enabled and playback running, pad hits write steps at the playhead.
 |-----|--------|
 | `1` through `8` | Switch to kit slot |
 
-### Synth
+### Dual Synths
 
-The synth section (toggle visibility with `F2`) provides a polyphonic synthesizer with 2 main oscillators, a sub-oscillator, noise generator, two ADSR envelopes, a 24dB resonant filter, and an LFO with 6 waveforms. Synth notes are triggered with `z` `x` `c` `v` when the synth grid is focused, with `Up/Down` for pitch and `(` `)` for octave shifts.
+TextStep features two independent polyphonic synthesizers (**Synth A** and **Synth B**), each with its own patterns, kits, 2 oscillators + sub, noise, 2 ADSR envelopes, 24dB resonant filter, and LFO with 6 waveforms. Toggle all synth panels with `F2`. Each synth has its own pattern/kit selectors shown in the transport bar.
+
+Synth notes are triggered with `z` `x` `c` `v` when a synth grid is focused, with `Up/Down` for pitch and `(` `)` for octave shifts.
 
 ### File Operations
 
@@ -178,8 +181,8 @@ Projects are stored as JSON in `~/Library/Application Support/textstep/projects/
 │                                                    │
 │                 Audio Thread                       │
 │  ┌────────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  Sequencer │  │  Voices  │  │   Effects    │  │
-│  │   Clock    │  │ Drum+Syn │  │ Rev/Dly/Comp │  │
+│  │  Sequencer │  │  Voices  │   Effects    │  │
+│  │   Clock    │  │Drum+SynAB│  │ Rev/Dly/Comp │  │
 │  └────────────┘  └──────────┘  └──────────────┘  │
 │                       │                            │
 │                  cpal/CoreAudio                    │

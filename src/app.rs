@@ -393,6 +393,8 @@ pub struct FaderDrag {
 pub enum FaderKind {
     Drum,
     Synth,
+    SynthA,
+    SynthB,
 }
 
 /// State for synth knob drag.

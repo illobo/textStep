@@ -116,6 +116,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
         synth_a_kit_name,
         synth_a_focused,
         &synth_a_loop_str,
+        app.synth_a_pattern.params.volume,
     );
 
     // ── Line 3: Synth B status line ───────────────────────────────
@@ -135,6 +136,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
         synth_b_kit_name,
         synth_b_focused,
         &synth_b_loop_str,
+        app.synth_b_pattern.params.volume,
     );
 
     // ── Line 4: Drum status line ──────────────────────────────────
@@ -153,6 +155,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
         drum_kit_name,
         drum_focused,
         &drum_loop_str,
+        app.effect_params.drum_volume,
     );
 
     // ── Line 5: Master gauges ────────────────────────────────────
@@ -204,8 +207,21 @@ fn gauge_spans<'a>(value: f32, width: usize, fill_style: Style, empty_style: Sty
 /// Pattern slot key labels (QWERTYUIOP = patterns 1-10).
 const PATTERN_KEYS: [&str; 10] = ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"];
 
-/// Build a status line with pattern/kit selectors:
-///   SA | Pattern: q w e r t y u i o p | Kit: 1 2 3 4 5 6 7 8
+/// Width of the volume slider in the status line (in characters).
+pub const STATUS_VOL_WIDTH: usize = 8;
+
+// ── Status line column offsets (from inner_x) for mouse hit-testing ──────────
+// Format: "SA  Pattern: q w e r t y u i o p │ Kit: 1 2 3 4 5 6 7 8  Loop[NN]  Vol:████░░░░"
+//          2   11       19                    8     15               10         6   8
+/// Column offset of pattern keys from inner_x.
+pub const STATUS_PAT_OFFSET: u16 = 13; // label(2) + "  Pattern: "(11)
+/// Column offset of kit numbers from inner_x.
+pub const STATUS_KIT_OFFSET: u16 = 40; // PAT(13) + keys(19) + " │ Kit: "(8)
+/// Column offset of volume slider bar from inner_x.
+pub const STATUS_VOL_OFFSET: u16 = 71; // KIT(40) + nums(15) + "  Loop[NN]"(10=2+8pad) + "  Vol:"(6)
+
+/// Build a status line with pattern/kit selectors and volume slider:
+///   SA  Pattern: q w e r t y u i o p │ Kit: 1 2 3 4 5 6 7 8  Loop[32]  Vol:████░░░░
 fn status_line<'a>(
     label: &str,
     active_pattern: usize,
@@ -214,6 +230,7 @@ fn status_line<'a>(
     _kit_name: &str,
     is_focused: bool,
     loop_info: &str,
+    volume: f32,
 ) -> Line<'a> {
     let mut spans: Vec<Span<'a>> = Vec::new();
 
@@ -261,7 +278,20 @@ fn status_line<'a>(
     } else {
         Style::default().fg(theme::TEXT)
     };
-    spans.push(Span::styled(format!("  {}", loop_info), loop_style));
+    spans.push(Span::styled(format!("  {:<8}", loop_info), loop_style));
+
+    // Volume slider: amber fill (same theme as master gauges) + numeric value
+    spans.push(Span::styled("  Vol:", Style::default().fg(theme::DIM_TEXT)));
+    spans.push(gauge_spans(
+        volume, STATUS_VOL_WIDTH,
+        Style::default().fg(theme::AMBER),
+        Style::default().fg(theme::SURFACE),
+    ));
+    let pct = (volume.clamp(0.0, 1.0) * 100.0).round() as u8;
+    spans.push(Span::styled(
+        format!("{:>3}", pct),
+        Style::default().fg(theme::TEXT),
+    ));
 
     Line::from(spans)
 }

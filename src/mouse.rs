@@ -6,11 +6,12 @@ use std::time::Instant;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-use crate::app::{App, CompressorDrag, DragState, DrumControlField, FocusSection, KNOB_FIELDS, ModalState, SynthDrag, SynthNoteDrag};
+use crate::app::{App, CompressorDrag, DragState, DrumControlField, FaderDrag, FaderKind, FocusSection, KNOB_FIELDS, ModalState, SynthDrag, SynthNoteDrag};
 use crate::messages::{SynthId, UiToAudio};
 use crate::sequencer::drum_pattern::{NUM_DRUM_TRACKS, TRACK_IDS};
 use crate::sequencer::project::{NUM_KITS, NUM_PATTERNS};
 use crate::ui::layout::{compute_dual_layout, DualSynthLayout};
+use crate::ui::transport_bar::{STATUS_PAT_OFFSET, STATUS_KIT_OFFSET, STATUS_VOL_OFFSET, STATUS_VOL_WIDTH};
 
 /// Threshold for double-click detection.
 const DOUBLE_CLICK_MS: u128 = 300;
@@ -88,6 +89,24 @@ fn handle_scroll(app: &mut App, col: u16, row: u16, delta: f32, term_size: Rect)
             app.send_synth_pattern(SynthId::B);
             app.dirty = true;
         }
+    } else if let Some(kind) = hit_test_volume_slider(col, row, ly.transport) {
+        // Scroll over transport volume slider
+        match kind {
+            FaderKind::SynthA => {
+                app.synth_a_pattern.params.volume = (app.synth_a_pattern.params.volume + delta).clamp(0.0, 1.0);
+                app.send_synth_pattern(SynthId::A);
+            }
+            FaderKind::SynthB => {
+                app.synth_b_pattern.params.volume = (app.synth_b_pattern.params.volume + delta).clamp(0.0, 1.0);
+                app.send_synth_pattern(SynthId::B);
+            }
+            FaderKind::Drum => {
+                app.effect_params.drum_volume = (app.effect_params.drum_volume + delta).clamp(0.0, 1.0);
+                app.send_effect_params();
+            }
+            _ => {}
+        }
+        app.dirty = true;
     } else if hit_test_compressor_gauge(col, row, ly.transport) {
         // Scroll over compressor gauge
         app.effect_params.compressor_amount = (app.effect_params.compressor_amount + delta).clamp(0.0, 1.0);
@@ -143,10 +162,24 @@ fn handle_left_down(app: &mut App, col: u16, row: u16, term_size: Rect) {
         handle_pad_click(app, track);
     } else if hit_test_compressor_gauge(col, row, ly.transport) {
         handle_compressor_click(app, row);
-    } else if let Some((idx, is_synth)) = hit_test_pattern_selector(col, row, ly.transport) {
-        if is_synth { app.queue_synth_pattern(idx); } else { app.queue_pattern(idx); }
-    } else if let Some((idx, is_synth)) = hit_test_kit_selector(col, row, ly.transport) {
-        if is_synth { app.switch_synth_kit(idx); } else { app.switch_kit(idx); }
+    } else if let Some(kind) = hit_test_volume_slider(col, row, ly.transport) {
+        handle_volume_slider_click(app, kind, row);
+    } else if let Some((idx, section)) = hit_test_pattern_selector(col, row, ly.transport) {
+        use crate::app::FaderKind;
+        match section {
+            FaderKind::SynthA => app.queue_synth_pattern_for(SynthId::A, idx),
+            FaderKind::SynthB => app.queue_synth_pattern_for(SynthId::B, idx),
+            FaderKind::Drum => app.queue_pattern(idx),
+            _ => {}
+        }
+    } else if let Some((idx, section)) = hit_test_kit_selector(col, row, ly.transport) {
+        use crate::app::FaderKind;
+        match section {
+            FaderKind::SynthA => app.switch_synth_kit_for(SynthId::A, idx),
+            FaderKind::SynthB => app.switch_synth_kit_for(SynthId::B, idx),
+            FaderKind::Drum => app.switch_kit(idx),
+            _ => {}
+        }
     } else if hit_test_play_button(col, row, ly.transport) {
         use crate::sequencer::transport::PlayState;
         app.transport.state = match app.transport.state {
@@ -952,31 +985,29 @@ fn hit_test_record_button(col: u16, row: u16, transport_area: Rect) -> bool {
 }
 
 /// Returns (pattern_index, is_synth_row) if the click is on a pattern selector key.
-/// Transport lines 2-3 have two rows of machine selectors:
-///   Line 2 (area.y + 2): Synth | Pattern: q w e ... | Kit: 1 2 ...
-///   Line 3 (area.y + 3): Drum  | Pattern: q w e ... | Kit: 1 2 ...
-fn hit_test_pattern_selector(col: u16, row: u16, transport_area: Rect) -> Option<(usize, bool)> {
-    let synth_line_y = transport_area.y + 2;
-    let drum_line_y = transport_area.y + 3;
+/// Identify which status line section a row belongs to.
+/// Line 2 (area.y+2) = SA, Line 3 (area.y+3) = SB, Line 4 (area.y+4) = DR.
+fn status_line_section(row: u16, transport_area: Rect) -> Option<FaderKind> {
+    use crate::app::FaderKind;
+    match row {
+        r if r == transport_area.y + 2 => Some(FaderKind::SynthA),
+        r if r == transport_area.y + 3 => Some(FaderKind::SynthB),
+        r if r == transport_area.y + 4 => Some(FaderKind::Drum),
+        _ => None,
+    }
+}
 
-    let is_synth = if row == synth_line_y {
-        true
-    } else if row == drum_line_y {
-        false
-    } else {
-        return None;
-    };
-
-    // Row layout: "Synth │  Pat: q w e r t y u i o p  │  Kit: 1 2 ..."
-    // "Synth " (6) + "│" (1) + "  Pat: " (7) = prefix 14
+/// Transport lines 2-4 have three rows of machine selectors (SA, SB, DR):
+///   "SA  Pattern: q w e r t y u i o p │ Kit: 1 2 3 4 5 6 7 8  ..."
+fn hit_test_pattern_selector(col: u16, row: u16, transport_area: Rect) -> Option<(usize, FaderKind)> {
+    let section = status_line_section(row, transport_area)?;
     let inner_x = transport_area.x + 1;
-    let pat_start = inner_x + 14;
+    let pat_start = inner_x + STATUS_PAT_OFFSET;
 
-    // Each pattern key: 1 char key + 1 space = 2 chars
     if col >= pat_start && col < pat_start + (NUM_PATTERNS as u16) * 2 {
         let idx = ((col - pat_start) / 2) as usize;
         if idx < NUM_PATTERNS {
-            return Some((idx, is_synth));
+            return Some((idx, section));
         }
     }
     None
@@ -984,29 +1015,19 @@ fn hit_test_pattern_selector(col: u16, row: u16, transport_area: Rect) -> Option
 
 // ── Volume fader hit testing ─────────────────────────────────────────────────
 
-/// Check if click is within a fader area.
-/// (Currently unused — faders not in DualSynthLayout yet, kept for future re-use.)
-#[allow(dead_code)]
-fn hit_test_fader(col: u16, row: u16, fader_area: Rect) -> bool {
-    col >= fader_area.x
-        && col < fader_area.x + fader_area.width
-        && row >= fader_area.y
-        && row < fader_area.y + fader_area.height
-}
-
-/// Convert a click row to a volume value (0.0 at bottom, 1.0 at top).
-/// (Currently unused — faders not in DualSynthLayout yet, kept for future re-use.)
-#[allow(dead_code)]
-fn fader_value_from_click(row: u16, fader_area: Rect) -> f32 {
-    // Inner area (inside border)
-    let inner_top = fader_area.y + 1;
-    let inner_height = fader_area.height.saturating_sub(2);
-    if inner_height == 0 {
-        return 0.5;
-    }
-    let rel = row.saturating_sub(inner_top) as f32;
-    // Invert: top = 1.0, bottom = 0.0
-    (1.0 - rel / inner_height as f32).clamp(0.0, 1.0)
+/// Handle click on a transport volume slider — start drag.
+fn handle_volume_slider_click(app: &mut App, kind: FaderKind, row: u16) {
+    let current_value = match kind {
+        FaderKind::SynthA => app.synth_a_pattern.params.volume,
+        FaderKind::SynthB => app.synth_b_pattern.params.volume,
+        FaderKind::Drum => app.effect_params.drum_volume,
+        FaderKind::Synth => app.synth_a_pattern.params.volume, // legacy fallback
+    };
+    app.ui.mouse.fader_drag = Some(crate::app::FaderDrag {
+        kind,
+        start_y: row,
+        start_value: current_value,
+    });
 }
 
 fn handle_fader_drag(app: &mut App, row: u16) {
@@ -1025,40 +1046,43 @@ fn handle_fader_drag(app: &mut App, row: u16) {
             app.effect_params.drum_volume = new_value;
             app.send_effect_params();
         }
-        FaderKind::Synth => {
+        FaderKind::Synth | FaderKind::SynthA => {
             app.synth_a_pattern.params.volume = new_value;
             app.send_synth_pattern(SynthId::A);
+        }
+        FaderKind::SynthB => {
+            app.synth_b_pattern.params.volume = new_value;
+            app.send_synth_pattern(SynthId::B);
         }
     }
     app.dirty = true;
 }
 
-/// Returns (kit_index, is_synth_row) if the click is on a kit selector number.
-/// Transport lines 2-3 have two rows of machine selectors:
-///   Line 2 (area.y + 2): Synth | Pattern: q w e ... | Kit: 1 2 ...
-///   Line 3 (area.y + 3): Drum  | Pattern: q w e ... | Kit: 1 2 ...
-fn hit_test_kit_selector(col: u16, row: u16, transport_area: Rect) -> Option<(usize, bool)> {
-    let synth_line_y = transport_area.y + 2;
-    let drum_line_y = transport_area.y + 3;
-
-    let is_synth = if row == synth_line_y {
-        true
-    } else if row == drum_line_y {
-        false
-    } else {
-        return None;
-    };
-
+/// Returns (kit_index, section) if the click is on a kit selector number.
+fn hit_test_kit_selector(col: u16, row: u16, transport_area: Rect) -> Option<(usize, FaderKind)> {
+    let section = status_line_section(row, transport_area)?;
     let inner_x = transport_area.x + 1;
-    // "Synth " (6) + "│" (1) + "  Pat: " (7) + 10 patterns * 2 (20) + " │" (2) + "  Kit: " (7) = 43
-    let kit_start = inner_x + 14 + 20 + 9;
+    let kit_start = inner_x + STATUS_KIT_OFFSET;
 
-    // Each kit: 1 char + 1 space = 2 chars
     if col >= kit_start && col < kit_start + (NUM_KITS as u16) * 2 {
         let idx = ((col - kit_start) / 2) as usize;
         if idx < NUM_KITS {
-            return Some((idx, is_synth));
+            return Some((idx, section));
         }
     }
     None
+}
+
+/// Returns FaderKind if click is on a volume slider in a status line.
+fn hit_test_volume_slider(col: u16, row: u16, transport_area: Rect) -> Option<FaderKind> {
+    let section = status_line_section(row, transport_area)?;
+    let inner_x = transport_area.x + 1;
+    let vol_start = inner_x + STATUS_VOL_OFFSET;
+    let vol_end = vol_start + STATUS_VOL_WIDTH as u16;
+
+    if col >= vol_start && col < vol_end {
+        Some(section)
+    } else {
+        None
+    }
 }
