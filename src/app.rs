@@ -1189,7 +1189,7 @@ impl App {
         use crate::sequencer::synth_pattern::{MAX_STEPS, SynthStep};
 
         let fill_len = if self.transport.loop_config.enabled {
-            self.transport.loop_config.synth_length as usize
+            self.transport.loop_config.synth_a_length as usize
         } else {
             MAX_STEPS
         };

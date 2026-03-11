@@ -716,7 +716,7 @@ fn handle_drag(app: &mut App, col: u16, row: u16, _term_size: Rect) {
         let step_delta = col_delta / 2; // 2 chars per step
         let new_length = (drag.original_length as i32 + step_delta).clamp(1, 32) as u8;
         // Clamp to loop boundary
-        let loop_len = app.transport.loop_config.synth_length as usize;
+        let loop_len = app.transport.loop_config.synth_a_length as usize;
         let max_length = (loop_len - drag.step).min(32) as u8;
         let clamped = new_length.min(max_length).max(1);
         if app.synth_a_pattern.steps[drag.step].length != clamped {

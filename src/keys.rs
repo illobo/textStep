@@ -255,13 +255,13 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('L') => {
             let is_synth = matches!(app.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls);
             if is_synth {
-                app.transport.loop_config.synth_length = match app.transport.loop_config.synth_length {
+                app.transport.loop_config.synth_a_length = match app.transport.loop_config.synth_a_length {
                     8 => 16,
                     16 => 24,
                     24 => 32,
                     _ => 8,
                 };
-                app.show_status(format!("Synth loop: {} steps", app.transport.loop_config.synth_length));
+                app.show_status(format!("Synth loop: {} steps", app.transport.loop_config.synth_a_length));
             } else {
                 app.transport.loop_config.drum_length = match app.transport.loop_config.drum_length {
                     8 => 16,
@@ -750,7 +750,7 @@ fn handle_synth_grid(app: &mut App, key: KeyEvent) {
         KeyCode::Right if key.modifiers.contains(KeyModifiers::SHIFT) => {
             let s = app.ui.synth_a.cursor_step;
             if app.synth_a_pattern.steps[s].is_active() {
-                let loop_len = app.transport.loop_config.synth_length as usize;
+                let loop_len = app.transport.loop_config.synth_a_length as usize;
                 let max_length = (loop_len - s).min(32) as u8;
                 if app.synth_a_pattern.steps[s].length < max_length {
                     app.synth_a_pattern.steps[s].length += 1;

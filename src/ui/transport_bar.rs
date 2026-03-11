@@ -106,7 +106,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
     // ── Line 2: Synth machine selector + loop indicator ──────────
     let synth_focused = matches!(app.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls);
     let synth_loop_str = if app.transport.loop_config.enabled {
-        format!("Loop [ON] S:{}", app.transport.loop_config.synth_length)
+        format!("Loop [ON] S:{}", app.transport.loop_config.synth_a_length)
     } else {
         "Loop [OFF]".to_string()
     };

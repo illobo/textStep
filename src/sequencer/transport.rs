@@ -1,5 +1,7 @@
 //! Transport state: play/pause/stop, BPM, loop configuration, swing amount.
 
+use serde::{Deserialize, Serialize};
+
 /// Sequencer playback state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayState {
@@ -15,19 +17,25 @@ pub enum RecordMode {
 }
 
 /// Per-section loop length settings (8/16/24/32 steps for drum and synth independently).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct LoopConfig {
     pub enabled: bool,
     pub drum_length: u8,  // 8, 16, 24, or 32
-    pub synth_length: u8, // 8, 16, 24, or 32
+    #[serde(alias = "synth_length")]
+    pub synth_a_length: u8, // 8, 16, 24, or 32 (was: synth_length)
+    #[serde(default = "default_synth_b_length")]
+    pub synth_b_length: u8, // 8, 16, 24, or 32
 }
+
+fn default_synth_b_length() -> u8 { 16 }
 
 impl Default for LoopConfig {
     fn default() -> Self {
         Self {
             enabled: false,
             drum_length: 32,
-            synth_length: 32,
+            synth_a_length: 32,
+            synth_b_length: 16,
         }
     }
 }

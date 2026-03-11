@@ -22,7 +22,7 @@ pub fn render_synth_grid(f: &mut Frame, area: Rect, app: &App) {
 
     let muted = app.synth_a_pattern.params.mute;
 
-    let loop_len = app.transport.loop_config.synth_length;
+    let loop_len = app.transport.loop_config.synth_a_length;
     let block = Block::default()
         .title(format!(" SYNTH STEPS [{} steps] ", loop_len))
         .title_style(Style::default().fg(theme::TITLE_COLOR).add_modifier(Modifier::BOLD))
