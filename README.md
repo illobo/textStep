@@ -92,6 +92,7 @@ xattr -d com.apple.quarantine ./textstep
 | `l` | Toggle loop on/off |
 | `L` | Cycle loop length: 8 / 16 / 24 / 32 |
 | `Shift+C` | Cycle compressor: Off / Light / Medium / Heavy / Max |
+| `Shift+T` | Cycle tube saturator: Off / Light / Medium / Heavy / Max |
 
 ### Navigation
 
