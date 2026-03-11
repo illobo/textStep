@@ -46,6 +46,7 @@ pub enum PatternMergeMode {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PresetBrowserState {
     pub target: PresetTarget,
+    pub target_synth: crate::messages::SynthId, // which synth to apply synth presets to
     pub categories: Vec<&'static str>,
     pub category_idx: usize,
     pub preset_names: Vec<&'static str>,
@@ -64,6 +65,7 @@ impl PresetBrowserState {
             .collect();
         Self {
             target: PresetTarget::DrumSound(track),
+            target_synth: crate::messages::SynthId::A, // default, not used for drum presets
             categories,
             category_idx: 0,
             preset_names: names,
@@ -80,6 +82,7 @@ impl PresetBrowserState {
             .collect();
         Self {
             target: PresetTarget::SynthSound,
+            target_synth: crate::messages::SynthId::A, // default, will be set when browser opens
             categories,
             category_idx: 0,
             preset_names: names,
@@ -150,6 +153,7 @@ impl PresetBrowserState {
             .collect();
         Self {
             target: PresetTarget::Pattern,
+            target_synth: crate::messages::SynthId::A, // default, not used for drum patterns
             categories,
             category_idx: 0,
             preset_names: names,
@@ -175,6 +179,7 @@ impl PresetBrowserState {
             .collect();
         Self {
             target: PresetTarget::SynthPattern,
+            target_synth: crate::messages::SynthId::A, // default, will be set when browser opens
             categories,
             category_idx: 0,
             preset_names: names,

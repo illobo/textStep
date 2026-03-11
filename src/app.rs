@@ -1168,12 +1168,19 @@ impl App {
     // ── Preset Browser ─────────────────────────────────────────────────
 
     pub fn open_preset_browser(&mut self) {
-        let is_synth = matches!(self.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls);
-        let browser = if is_synth {
+        let is_synth = matches!(self.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls | FocusSection::SynthBGrid | FocusSection::SynthBControls);
+        let mut browser = if is_synth {
             crate::presets::PresetBrowserState::for_synth()
         } else {
             crate::presets::PresetBrowserState::for_drum_track(self.ui.drum_cursor_track)
         };
+        // Set target synth based on current focus
+        if is_synth {
+            browser.target_synth = match self.ui.focus {
+                FocusSection::SynthBGrid | FocusSection::SynthBControls => SynthId::B,
+                _ => SynthId::A,
+            };
+        }
         self.ui.modal = ModalState::PresetBrowser(browser);
     }
 
@@ -1189,12 +1196,19 @@ impl App {
     }
 
     pub fn open_pattern_browser(&mut self) {
-        let is_synth = matches!(self.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls);
-        let pb = if is_synth {
+        let is_synth = matches!(self.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls | FocusSection::SynthBGrid | FocusSection::SynthBControls);
+        let mut pb = if is_synth {
             crate::presets::PatternBrowserState::new_synth()
         } else {
             crate::presets::PatternBrowserState::new()
         };
+        // Set target synth based on current focus
+        if is_synth {
+            pb.browser.target_synth = match self.ui.focus {
+                FocusSection::SynthBGrid | FocusSection::SynthBControls => SynthId::B,
+                _ => SynthId::A,
+            };
+        }
         self.ui.modal = ModalState::PatternBrowser(pb);
     }
 

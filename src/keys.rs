@@ -1161,7 +1161,8 @@ fn handle_preset_browser(app: &mut App, key: KeyEvent) {
                 PresetTarget::SynthSound => {
                     if let Some(params) = browser.selected_synth_params() {
                         let name = browser.preset_names.get(browser.preset_idx).copied().unwrap_or("?");
-                        app.apply_synth_preset(SynthId::A, params);
+                        let synth_id = browser.target_synth;
+                        app.apply_synth_preset(synth_id, params);
                         app.ui.modal = ModalState::None;
                         app.show_status(format!("Loaded: {}", name));
                     }
@@ -1225,7 +1226,8 @@ fn handle_pattern_browser(app: &mut App, key: KeyEvent) {
                 app.show_status(format!("{}: {}", mode_label, name));
             } else if let Some(preset) = pb.browser.selected_synth_pattern() {
                 let name = preset.name;
-                app.apply_synth_pattern_preset(SynthId::A, &preset.steps, merge);
+                let synth_id = pb.browser.target_synth;
+                app.apply_synth_pattern_preset(synth_id, &preset.steps, merge);
                 app.show_status(format!("{}: {}", mode_label, name));
             }
         }
@@ -1256,10 +1258,15 @@ fn preview_preset(app: &mut App) {
         }
         PresetTarget::SynthSound => {
             if let Some(params) = browser.selected_synth_params() {
-                app.apply_synth_preset(SynthId::A, params);
-                let note = app.ui.synth_a.octave * 12 + 12;
-                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
-                app.ui.synth_a.flash = 6;
+                let synth_id = browser.target_synth;
+                app.apply_synth_preset(synth_id, params);
+                let (octave, flash) = match synth_id {
+                    SynthId::A => (app.ui.synth_a.octave, &mut app.ui.synth_a.flash),
+                    SynthId::B => (app.ui.synth_b.octave, &mut app.ui.synth_b.flash),
+                };
+                let note = octave * 12 + 12;
+                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(synth_id, note));
+                *flash = 6;
             }
         }
         PresetTarget::Pattern | PresetTarget::SynthPattern => {} // no preview for patterns
