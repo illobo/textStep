@@ -67,11 +67,11 @@ const ADSR_LABELS: &[&str] = &["A", "D", "S", "R"];
 /// Renders the synth parameter panel with grouped slider/ADSR sections
 /// laid out in four row groups: OSC, ENV+FILT, LFO, and AMP.
 pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App) {
-    let focused = app.ui.focus == FocusSection::SynthControls;
+    let focused = app.ui.focus == FocusSection::SynthAControls;
     let border_style = theme::focus_border_style(focused);
 
     let block = Block::default()
-        .title(format!(" SYNTH  Oct:{} ", app.ui.synth_octave))
+        .title(format!(" SYNTH  Oct:{} ", app.ui.synth_a.octave))
         .title_style(Style::default().fg(theme::TITLE_COLOR).add_modifier(Modifier::BOLD))
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
@@ -84,8 +84,8 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let params = &app.synth_pattern.params;
-    let sel = app.ui.synth_ctrl_field;
+    let params = &app.synth_a_pattern.params;
+    let sel = app.ui.synth_a.ctrl_field;
 
     // Split inner into 4 row groups: OSC (8), ENV+FILT (8), LFO (3), AMP (remaining)
     let row_groups = Layout::default()
@@ -603,7 +603,7 @@ fn render_amp_group(
     selected: SynthControlField,
     focused: bool,
 ) {
-    let params = &app.synth_pattern.params;
+    let params = &app.synth_a_pattern.params;
     let sat = app.effect_params.synth_saturator_drive;
 
     // We render 4 columns: Vol, Reverb, Delay, Sat

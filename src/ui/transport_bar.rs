@@ -104,19 +104,19 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
     let top_line = Line::from(top_spans);
 
     // ── Line 2: Synth machine selector + loop indicator ──────────
-    let synth_focused = matches!(app.ui.focus, FocusSection::SynthGrid | FocusSection::SynthControls);
+    let synth_focused = matches!(app.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls);
     let synth_loop_str = if app.transport.loop_config.enabled {
         format!("Loop [ON] S:{}", app.transport.loop_config.synth_length)
     } else {
         "Loop [OFF]".to_string()
     };
-    let synth_kit_name = app.project.synth_kits.get(app.ui.synth_active_kit)
+    let synth_kit_name = app.project.synth_kits.get(app.ui.synth_a.active_kit)
         .map(|k| k.name.as_str()).unwrap_or("");
     let synth_line = machine_selector_line(
         "Synth",
-        app.ui.synth_active_pattern,
-        app.ui.synth_queued_pattern,
-        app.ui.synth_active_kit,
+        app.ui.synth_a.active_pattern,
+        app.ui.synth_a.queued_pattern,
+        app.ui.synth_a.active_kit,
         synth_kit_name,
         synth_focused,
         &synth_loop_str,

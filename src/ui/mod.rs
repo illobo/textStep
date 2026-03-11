@@ -43,7 +43,7 @@ pub fn render(f: &mut Frame, app: &App) {
     if app.ui.synth_collapsed {
         render_synth_collapsed(f, ly.synth_section, app);
     } else {
-        render_volume_fader(f, ly.synth_fader, app.synth_pattern.params.volume, "SY");
+        render_volume_fader(f, ly.synth_fader, app.synth_a_pattern.params.volume, "SY");
         synth_knobs::render_synth_knobs(f, ly.synth_knobs, app);
         synth_grid::render_synth_grid(f, ly.synth_grid, app);
     }

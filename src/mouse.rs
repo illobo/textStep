@@ -40,7 +40,7 @@ pub fn handle_mouse(app: &mut App, event: MouseEvent, term_size: Rect) {
         MouseEventKind::Up(MouseButton::Left) => {
             // If synth note drag ended without movement, toggle the step
             if let Some(ref drag) = app.ui.mouse.synth_note_drag {
-                if app.synth_pattern.steps[drag.step].length == drag.original_length {
+                if app.synth_a_pattern.steps[drag.step].length == drag.original_length {
                     // No length change — treat as double-click toggle on second click
                     // (first click just selects; this is handled by last_click logic)
                 }
@@ -72,10 +72,10 @@ fn handle_scroll(app: &mut App, col: u16, row: u16, delta: f32, term_size: Rect)
         app.dirty = true;
     } else if hit_test_area(col, row, ly.synth_knobs) {
         // Scroll over synth knobs: adjust currently selected synth param
-        let field = app.ui.synth_ctrl_field;
+        let field = app.ui.synth_a.ctrl_field;
         if !field.is_enum() {
-            let current = field.get(&app.synth_pattern.params);
-            field.set(&mut app.synth_pattern.params, (current + delta).clamp(0.0, 1.0));
+            let current = field.get(&app.synth_a_pattern.params);
+            field.set(&mut app.synth_a_pattern.params, (current + delta).clamp(0.0, 1.0));
             app.send_synth_pattern();
             app.dirty = true;
         }
@@ -96,9 +96,9 @@ fn handle_left_down(app: &mut App, col: u16, row: u16, term_size: Rect) {
     if hit_test_area(col, row, ly.transport) {
         app.ui.focus = FocusSection::Transport;
     } else if hit_test_area(col, row, ly.synth_grid) {
-        app.ui.focus = FocusSection::SynthGrid;
+        app.ui.focus = FocusSection::SynthAGrid;
     } else if hit_test_area(col, row, ly.synth_knobs) {
-        app.ui.focus = FocusSection::SynthControls;
+        app.ui.focus = FocusSection::SynthAControls;
     } else if hit_test_area(col, row, ly.drum_grid) {
         app.ui.focus = FocusSection::DrumGrid;
     } else if hit_test_area(col, row, ly.knobs) {
@@ -120,7 +120,7 @@ fn handle_left_down(app: &mut App, col: u16, row: u16, term_size: Rect) {
     }
     if hit_test_fader(col, row, ly.synth_fader) {
         let value = fader_value_from_click(row, ly.synth_fader);
-        app.synth_pattern.params.volume = value;
+        app.synth_a_pattern.params.volume = value;
         app.send_synth_pattern();
         app.dirty = true;
         app.ui.mouse.fader_drag = Some(FaderDrag {
@@ -137,7 +137,7 @@ fn handle_left_down(app: &mut App, col: u16, row: u16, term_size: Rect) {
     } else if let Some(field) = hit_test_synth_knobs(col, row, ly.synth_knobs) {
         handle_synth_knobs_click(app, field, row);
     } else if hit_test_area(col, row, ly.synth_knobs) {
-        app.ui.focus = FocusSection::SynthControls;
+        app.ui.focus = FocusSection::SynthAControls;
     } else if let Some((track, step)) = hit_test_grid_step(col, row, ly.drum_grid) {
         handle_grid_click(app, track, step);
     } else if let Some((track, is_mute)) = hit_test_mute_solo(col, row, ly.drum_grid) {
@@ -219,12 +219,12 @@ fn handle_synth_step_click(app: &mut App, step: usize) {
     if is_double {
         // Double-click: toggle step
         use crate::sequencer::synth_pattern::SynthStep;
-        if app.synth_pattern.steps[step].is_active() {
-            app.synth_pattern.steps[step] = SynthStep { note: 0, velocity: 0, length: 1 };
+        if app.synth_a_pattern.steps[step].is_active() {
+            app.synth_a_pattern.steps[step] = SynthStep { note: 0, velocity: 0, length: 1 };
         } else {
             // Insert note at current octave
-            let note = 60 + (app.ui.synth_octave as u8).wrapping_sub(4) * 12; // C at current octave
-            app.synth_pattern.steps[step] = SynthStep { note, velocity: 100, length: 1 };
+            let note = 60 + (app.ui.synth_a.octave as u8).wrapping_sub(4) * 12; // C at current octave
+            app.synth_a_pattern.steps[step] = SynthStep { note, velocity: 100, length: 1 };
         }
         app.send_synth_pattern();
         app.dirty = true;
@@ -232,22 +232,22 @@ fn handle_synth_step_click(app: &mut App, step: usize) {
         app.ui.mouse.synth_note_drag = None;
     } else {
         // Single click: move cursor + focus
-        app.ui.focus = FocusSection::SynthGrid;
-        app.ui.synth_cursor_step = step;
+        app.ui.focus = FocusSection::SynthAGrid;
+        app.ui.synth_a.cursor_step = step;
         app.ui.mouse.last_click = Some((now, 0, step)); // track=0 placeholder for synth
 
-        if app.synth_pattern.steps[step].is_active() {
+        if app.synth_a_pattern.steps[step].is_active() {
             // Active step: start a note-length drag
             app.ui.mouse.synth_note_drag = Some(SynthNoteDrag {
                 step,
-                original_length: app.synth_pattern.steps[step].length,
+                original_length: app.synth_a_pattern.steps[step].length,
                 start_col: 0, // will be set from the event col in handle_left_down
             });
         } else {
             // Empty step: create a note
             use crate::sequencer::synth_pattern::SynthStep;
-            let note = 60 + (app.ui.synth_octave as u8).wrapping_sub(4) * 12;
-            app.synth_pattern.steps[step] = SynthStep { note, velocity: 100, length: 1 };
+            let note = 60 + (app.ui.synth_a.octave as u8).wrapping_sub(4) * 12;
+            app.synth_a_pattern.steps[step] = SynthStep { note, velocity: 100, length: 1 };
             app.send_synth_pattern();
             app.dirty = true;
             // Start drag so user can immediately extend the new note
@@ -484,23 +484,23 @@ fn hit_adsr_field(col: u16, area: Rect, fields: &[SynthControlField]) -> Option<
 }
 
 fn handle_synth_knobs_click(app: &mut App, field: SynthControlField, start_y: u16) {
-    app.ui.focus = FocusSection::SynthControls;
-    app.ui.synth_ctrl_field = field;
+    app.ui.focus = FocusSection::SynthAControls;
+    app.ui.synth_a.ctrl_field = field;
 
     // For enum fields, just cycle on click instead of drag
     if field.is_enum() {
         let max_val: u8 = if field == SynthControlField::FilterType { 2 } else { 3 };
-        let cur = field.get(&app.synth_pattern.params);
+        let cur = field.get(&app.synth_a_pattern.params);
         let cur_int = (cur * max_val as f32).round() as u8;
         let new_int = (cur_int + 1) % (max_val + 1);
-        field.set(&mut app.synth_pattern.params, new_int as f32 / max_val as f32);
+        field.set(&mut app.synth_a_pattern.params, new_int as f32 / max_val as f32);
         app.send_synth_pattern();
         app.dirty = true;
         return;
     }
 
     // Start drag for continuous params
-    let start_value = field.get(&app.synth_pattern.params);
+    let start_value = field.get(&app.synth_a_pattern.params);
     app.ui.mouse.synth_drag = Some(SynthDrag {
         field,
         start_y,
@@ -719,8 +719,8 @@ fn handle_drag(app: &mut App, col: u16, row: u16, _term_size: Rect) {
         let loop_len = app.transport.loop_config.synth_length as usize;
         let max_length = (loop_len - drag.step).min(32) as u8;
         let clamped = new_length.min(max_length).max(1);
-        if app.synth_pattern.steps[drag.step].length != clamped {
-            app.synth_pattern.steps[drag.step].length = clamped;
+        if app.synth_a_pattern.steps[drag.step].length != clamped {
+            app.synth_a_pattern.steps[drag.step].length = clamped;
             app.send_synth_pattern();
             app.dirty = true;
         }
@@ -744,7 +744,7 @@ fn handle_drag(app: &mut App, col: u16, row: u16, _term_size: Rect) {
         let d = d.clone();
         let delta_y = d.start_y as f32 - row as f32;
         let new_value = (d.start_value + delta_y * DRAG_SENSITIVITY).clamp(0.0, 1.0);
-        d.field.set(&mut app.synth_pattern.params, new_value);
+        d.field.set(&mut app.synth_a_pattern.params, new_value);
         app.send_synth_pattern();
         app.dirty = true;
         return;
@@ -923,7 +923,7 @@ fn handle_fader_drag(app: &mut App, row: u16) {
             app.send_effect_params();
         }
         FaderKind::Synth => {
-            app.synth_pattern.params.volume = new_value;
+            app.synth_a_pattern.params.volume = new_value;
             app.send_synth_pattern();
         }
     }
