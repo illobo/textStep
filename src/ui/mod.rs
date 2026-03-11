@@ -23,6 +23,23 @@ use crate::app::{App, DrumControlField, FocusSection, ModalState, SplashPhase};
 use crate::presets::PresetTarget;
 use crate::sequencer::drum_pattern::{NUM_DRUM_TRACKS, TRACK_IDS};
 
+/// Render a collapsed panel bar with [.] indicator showing it can be expanded.
+fn render_collapsed_bar(f: &mut Frame, area: Rect, label: &str, focused: bool) {
+    if area.height == 0 || area.width == 0 {
+        return;
+    }
+    let style = if focused {
+        Style::default().fg(theme::CYAN)
+    } else {
+        Style::default().fg(theme::DIM_TEXT)
+    };
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .title(format!("[.] {}", label))
+        .title_style(style);
+    f.render_widget(block, area);
+}
+
 /// Top-level render function.
 pub fn render(f: &mut Frame, app: &App) {
     let size = f.area();
@@ -36,39 +53,89 @@ pub fn render(f: &mut Frame, app: &App) {
     // Matrix reveal: render real UI first, then overlay matrix rain on unrevealed cells
     let matrix_active = app.ui.splash.phase == SplashPhase::MatrixReveal;
 
-    // Compute layout once — shared structure between render and mouse
-    let ly = compute_layout(size, app.ui.synth_collapsed, app.ui.show_help, app.ui.show_waveform);
+    // Compute dual-synth layout from panel visibility
+    let ly = compute_dual_layout(size, &app.ui.panel_vis);
 
+    // ── Transport ────────────────────────────────────────────────
     transport_bar::render_transport(f, ly.transport, app);
-    if app.ui.synth_collapsed {
-        render_synth_collapsed(f, ly.synth_section, app);
+
+    // ── Synth A Knobs ────────────────────────────────────────────
+    if app.ui.panel_vis.synth_a_knobs {
+        synth_knobs::render_synth_knobs(f, ly.synth_a_knobs, app);
     } else {
-        render_volume_fader(f, ly.synth_fader, app.synth_a_pattern.params.volume, "SY");
-        synth_knobs::render_synth_knobs(f, ly.synth_knobs, app);
-        synth_grid::render_synth_grid(f, ly.synth_grid, app);
-    }
-    render_separator(f, ly.separator);
-    render_volume_fader(f, ly.drum_fader, app.effect_params.drum_volume, "DR");
-    drum_grid::render_drum_grid(f, ly.drum_grid, app);
-    knobs::render_knobs(f, ly.knobs, app);
-
-    if let Some(extra) = ly.extra {
-        if app.ui.show_help {
-            help_overlay::render_help(f, extra);
-        } else if app.ui.show_waveform {
-            let wave_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Length(3),  // VU meter
-                    Constraint::Min(20),   // Oscilloscope
-                ])
-                .split(extra);
-            waveform::render_vu_meter(f, wave_chunks[0], &app.display_buf);
-            waveform::render_scope_bars(f, wave_chunks[1], &app.ui.scope_bars, &app.ui.scope_intensity);
-        }
+        let focused = matches!(app.ui.focus, FocusSection::SynthAControls);
+        render_collapsed_bar(f, ly.synth_a_knobs_collapsed, "SYNTH A KNOBS", focused);
     }
 
+    // ── Synth A Grid ─────────────────────────────────────────────
+    if app.ui.panel_vis.synth_a_grid {
+        synth_grid::render_synth_grid(f, ly.synth_a_grid, app);
+    } else {
+        let focused = matches!(app.ui.focus, FocusSection::SynthAGrid);
+        render_collapsed_bar(f, ly.synth_a_grid_collapsed, "SYNTH A GRID", focused);
+    }
+
+    // ── Synth B Knobs ────────────────────────────────────────────
+    // Synth B rendering is collapsed-only for now (Task 9 parameterizes rendering)
+    if app.ui.panel_vis.synth_b_knobs {
+        // Temporary: render collapsed bar even when expanded until Task 9 parameterizes
+        let focused = matches!(app.ui.focus, FocusSection::SynthBControls);
+        render_collapsed_bar(f, ly.synth_b_knobs, "SYNTH B KNOBS (expand pending)", focused);
+    } else {
+        let focused = matches!(app.ui.focus, FocusSection::SynthBControls);
+        render_collapsed_bar(f, ly.synth_b_knobs_collapsed, "SYNTH B KNOBS", focused);
+    }
+
+    // ── Synth B Grid ─────────────────────────────────────────────
+    if app.ui.panel_vis.synth_b_grid {
+        let focused = matches!(app.ui.focus, FocusSection::SynthBGrid);
+        render_collapsed_bar(f, ly.synth_b_grid, "SYNTH B GRID (expand pending)", focused);
+    } else {
+        let focused = matches!(app.ui.focus, FocusSection::SynthBGrid);
+        render_collapsed_bar(f, ly.synth_b_grid_collapsed, "SYNTH B GRID", focused);
+    }
+
+    // ── Drum Grid ────────────────────────────────────────────────
+    if app.ui.panel_vis.drum_grid {
+        drum_grid::render_drum_grid(f, ly.drum_grid, app);
+    }
+
+    // ── Drum Knobs ───────────────────────────────────────────────
+    if app.ui.panel_vis.drum_knobs {
+        knobs::render_knobs(f, ly.drum_knobs, app);
+    } else {
+        let focused = matches!(app.ui.focus, FocusSection::Knobs);
+        render_collapsed_bar(f, ly.drum_knobs_collapsed, "DRUM KNOBS", focused);
+    }
+
+    // ── Waveform ─────────────────────────────────────────────────
+    if app.ui.panel_vis.waveform {
+        let wave_area = ly.waveform;
+        let wave_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(3),  // VU meter
+                Constraint::Min(20),   // Oscilloscope
+            ])
+            .split(wave_area);
+        waveform::render_vu_meter(f, wave_chunks[0], &app.display_buf);
+        waveform::render_scope_bars(f, wave_chunks[1], &app.ui.scope_bars, &app.ui.scope_intensity);
+    } else {
+        render_collapsed_bar(f, ly.waveform_collapsed, "WAVEFORM", false);
+    }
+
+    // ── Activity bar ─────────────────────────────────────────────
     render_activity_bar(f, ly.activity_bar, app);
+
+    // ── Help overlay (rendered on top, like a modal) ─────────────
+    if app.ui.show_help {
+        // Render help as a centered overlay
+        let help_h = HELP_HEIGHT.min(size.height.saturating_sub(2));
+        let help_y = size.y + (size.height.saturating_sub(help_h)) / 2;
+        let help_area = Rect::new(size.x, help_y, size.width, help_h);
+        f.render_widget(Clear, help_area);
+        help_overlay::render_help(f, help_area);
+    }
 
     // Matrix rain overlay (covers unrevealed cells)
     if matrix_active {
@@ -95,6 +162,7 @@ pub fn render(f: &mut Frame, app: &App) {
 
 // ── Separator ────────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 fn render_separator(f: &mut Frame, area: Rect) {
     let line = "─".repeat(area.width as usize);
     f.render_widget(
@@ -106,6 +174,7 @@ fn render_separator(f: &mut Frame, area: Rect) {
 // ── Volume faders ────────────────────────────────────────────────────────────
 
 /// Render the synth section in collapsed mode: just a title bar with label.
+#[allow(dead_code)]
 fn render_synth_collapsed(f: &mut Frame, area: Rect, _app: &App) {
     let block = Block::default()
         .title(" SYNTH [F2 expand] ")
@@ -115,6 +184,7 @@ fn render_synth_collapsed(f: &mut Frame, area: Rect, _app: &App) {
 }
 
 /// Render a vertical volume fader (Hi-Fi LED style, same as VU meter).
+#[allow(dead_code)]
 fn render_volume_fader(f: &mut Frame, area: Rect, volume: f32, _label: &str) {
     let block = Block::default()
         .borders(Borders::ALL)
