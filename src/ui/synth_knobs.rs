@@ -7,6 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use crate::app::{App, FocusSection};
+use crate::messages::SynthId;
 use crate::sequencer::synth_pattern::{SynthControlField, lfo_waveform_name, lfo_division_name, lfo_dest_name};
 use crate::ui::theme;
 
@@ -66,12 +67,22 @@ const ADSR_LABELS: &[&str] = &["A", "D", "S", "R"];
 
 /// Renders the synth parameter panel with grouped slider/ADSR sections
 /// laid out in four row groups: OSC, ENV+FILT, LFO, and AMP.
-pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App) {
-    let focused = app.ui.focus == FocusSection::SynthAControls;
+pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App, synth_id: SynthId) {
+    let (pattern, ui, focus_section) = match synth_id {
+        SynthId::A => (&app.synth_a_pattern, &app.ui.synth_a, FocusSection::SynthAControls),
+        SynthId::B => (&app.synth_b_pattern, &app.ui.synth_b, FocusSection::SynthBControls),
+    };
+
+    let focused = app.ui.focus == focus_section;
     let border_style = theme::focus_border_style(focused);
 
+    let title = match synth_id {
+        SynthId::A => format!(" SYNTH A  Oct:{} ", ui.octave),
+        SynthId::B => format!(" SYNTH B  Oct:{} ", ui.octave),
+    };
+
     let block = Block::default()
-        .title(format!(" SYNTH  Oct:{} ", app.ui.synth_a.octave))
+        .title(title)
         .title_style(Style::default().fg(theme::TITLE_COLOR).add_modifier(Modifier::BOLD))
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
@@ -84,8 +95,8 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App) {
         return;
     }
 
-    let params = &app.synth_a_pattern.params;
-    let sel = app.ui.synth_a.ctrl_field;
+    let params = &pattern.params;
+    let sel = ui.ctrl_field;
 
     // Split inner into 4 row groups: OSC (8), ENV+FILT (8), LFO (3), AMP (remaining)
     let row_groups = Layout::default()
@@ -216,7 +227,7 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App) {
             row_groups[3].height.saturating_sub(1),
         );
 
-        render_amp_group(f, amp_body, app, sel, focused);
+        render_amp_group(f, amp_body, params, app.effect_params.synth_saturator_drive, sel, focused);
     }
 }
 
@@ -599,12 +610,11 @@ fn render_lfo_row(
 fn render_amp_group(
     f: &mut Frame,
     area: Rect,
-    app: &App,
+    params: &crate::sequencer::synth_pattern::SynthParams,
+    sat: f32,
     selected: SynthControlField,
     focused: bool,
 ) {
-    let params = &app.synth_a_pattern.params;
-    let sat = app.effect_params.synth_saturator_drive;
 
     // We render 4 columns: Vol, Reverb, Delay, Sat
     let fields_with_sat: &[(&str, f32, Option<SynthControlField>)] = &[

@@ -7,6 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use crate::app::{App, FocusSection};
+use crate::messages::SynthId;
 use crate::sequencer::synth_pattern::MAX_STEPS;
 use crate::sequencer::transport::PlayState;
 use crate::ui::theme;
@@ -16,15 +17,34 @@ const NAME_WIDTH: usize = 9;
 
 /// Renders the synth step row with note names, velocity shading,
 /// multi-step continuation bars, and playhead/cursor highlights.
-pub fn render_synth_grid(f: &mut Frame, area: Rect, app: &App) {
-    let focused = app.ui.focus == FocusSection::SynthAGrid;
+pub fn render_synth_grid(f: &mut Frame, area: Rect, app: &App, synth_id: SynthId) {
+    let (pattern, ui_state, focus_section, loop_len) = match synth_id {
+        SynthId::A => (
+            &app.synth_a_pattern,
+            &app.ui.synth_a,
+            FocusSection::SynthAGrid,
+            app.transport.loop_config.synth_a_length,
+        ),
+        SynthId::B => (
+            &app.synth_b_pattern,
+            &app.ui.synth_b,
+            FocusSection::SynthBGrid,
+            app.transport.loop_config.synth_b_length,
+        ),
+    };
+
+    let focused = app.ui.focus == focus_section;
     let border_style = theme::focus_border_style(focused);
 
-    let muted = app.synth_a_pattern.params.mute;
+    let muted = pattern.params.mute;
 
-    let loop_len = app.transport.loop_config.synth_a_length;
+    let title = match synth_id {
+        SynthId::A => format!(" SYNTH A STEPS [{} steps] ", loop_len),
+        SynthId::B => format!(" SYNTH B STEPS [{} steps] ", loop_len),
+    };
+
     let block = Block::default()
-        .title(format!(" SYNTH STEPS [{} steps] ", loop_len))
+        .title(title)
         .title_style(Style::default().fg(theme::TITLE_COLOR).add_modifier(Modifier::BOLD))
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
@@ -83,7 +103,7 @@ pub fn render_synth_grid(f: &mut Frame, area: Rect, app: &App) {
         ));
     }
 
-    let playback_step = app.ui.synth_a.playback_step;
+    let playback_step = ui_state.playback_step;
     let is_playing = app.transport.state == PlayState::Playing;
 
     // Multi-step note tracking: `covered_until` holds the last step index covered by
@@ -100,8 +120,8 @@ pub fn render_synth_grid(f: &mut Frame, area: Rect, app: &App) {
             ));
         }
 
-        let step = &app.synth_a_pattern.steps[s];
-        let is_cursor = focused && s == app.ui.synth_a.cursor_step;
+        let step = &pattern.steps[s];
+        let is_cursor = focused && s == ui_state.cursor_step;
         let is_playhead = is_playing && s == playback_step;
         let out_of_loop = s >= loop_len as usize;
         let is_downbeat = s % 4 == 0;

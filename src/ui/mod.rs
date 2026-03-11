@@ -20,6 +20,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use layout::*;
 
 use crate::app::{App, DrumControlField, FocusSection, ModalState, SplashPhase};
+use crate::messages::SynthId;
 use crate::presets::PresetTarget;
 use crate::sequencer::drum_pattern::{NUM_DRUM_TRACKS, TRACK_IDS};
 
@@ -61,7 +62,7 @@ pub fn render(f: &mut Frame, app: &App) {
 
     // ── Synth A Knobs ────────────────────────────────────────────
     if app.ui.panel_vis.synth_a_knobs {
-        synth_knobs::render_synth_knobs(f, ly.synth_a_knobs, app);
+        synth_knobs::render_synth_knobs(f, ly.synth_a_knobs, app, SynthId::A);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthAControls);
         render_collapsed_bar(f, ly.synth_a_knobs_collapsed, "SYNTH A KNOBS", focused);
@@ -69,18 +70,15 @@ pub fn render(f: &mut Frame, app: &App) {
 
     // ── Synth A Grid ─────────────────────────────────────────────
     if app.ui.panel_vis.synth_a_grid {
-        synth_grid::render_synth_grid(f, ly.synth_a_grid, app);
+        synth_grid::render_synth_grid(f, ly.synth_a_grid, app, SynthId::A);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthAGrid);
         render_collapsed_bar(f, ly.synth_a_grid_collapsed, "SYNTH A GRID", focused);
     }
 
     // ── Synth B Knobs ────────────────────────────────────────────
-    // Synth B rendering is collapsed-only for now (Task 9 parameterizes rendering)
     if app.ui.panel_vis.synth_b_knobs {
-        // Temporary: render collapsed bar even when expanded until Task 9 parameterizes
-        let focused = matches!(app.ui.focus, FocusSection::SynthBControls);
-        render_collapsed_bar(f, ly.synth_b_knobs, "SYNTH B KNOBS (expand pending)", focused);
+        synth_knobs::render_synth_knobs(f, ly.synth_b_knobs, app, SynthId::B);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthBControls);
         render_collapsed_bar(f, ly.synth_b_knobs_collapsed, "SYNTH B KNOBS", focused);
@@ -88,8 +86,7 @@ pub fn render(f: &mut Frame, app: &App) {
 
     // ── Synth B Grid ─────────────────────────────────────────────
     if app.ui.panel_vis.synth_b_grid {
-        let focused = matches!(app.ui.focus, FocusSection::SynthBGrid);
-        render_collapsed_bar(f, ly.synth_b_grid, "SYNTH B GRID (expand pending)", focused);
+        synth_grid::render_synth_grid(f, ly.synth_b_grid, app, SynthId::B);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthBGrid);
         render_collapsed_bar(f, ly.synth_b_grid_collapsed, "SYNTH B GRID", focused);
