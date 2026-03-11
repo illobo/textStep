@@ -8,7 +8,7 @@ use crossbeam_channel::{Receiver, Sender};
 
 use crate::audio::display_buffer::AudioDisplayBuffer;
 
-use crate::messages::{AudioToUi, UiToAudio};
+use crate::messages::{AudioToUi, SynthId, UiToAudio};
 use crate::params::EffectParams;
 use crate::sequencer::drum_pattern::{DrumPattern, NUM_DRUM_TRACKS};
 use crate::sequencer::project::{self, ProjectFile, NUM_KITS, NUM_PATTERNS};
@@ -616,7 +616,7 @@ impl App {
         // Send initial state to audio thread so it has the pattern from the start
         let _ = tx.send(UiToAudio::SetTransport(transport));
         let _ = tx.send(UiToAudio::SetDrumPattern(drum_pattern.clone()));
-        let _ = tx.send(UiToAudio::SetSynthPattern(synth_pattern.clone()));
+        let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::A, synth_pattern.clone()));
 
         Self {
             ui: UiState::default(),
@@ -674,9 +674,11 @@ impl App {
                     beat,
                     is_bar_start,
                     triggered,
-                    synth_triggered,
+                    synth_a_triggered: synth_triggered,
                     drum_step,
-                    synth_step,
+                    synth_a_step: synth_step,
+                    synth_b_step: _,
+                    synth_b_triggered: _,
                 } => {
                     self.ui.playback_step = drum_step;
                     self.ui.synth_playback_step = synth_step;
@@ -783,7 +785,7 @@ impl App {
     pub fn send_synth_pattern(&self) {
         let _ = self
             .tx_to_audio
-            .send(UiToAudio::SetSynthPattern(self.synth_pattern.clone()));
+            .send(UiToAudio::SetSynthPattern(SynthId::A, self.synth_pattern.clone()));
     }
 
     /// Send effect params to the audio thread.

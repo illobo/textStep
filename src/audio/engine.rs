@@ -187,7 +187,7 @@ impl AudioEngine {
                 UiToAudio::SetDrumPattern(p) => {
                     self.drum_pattern = p;
                 }
-                UiToAudio::SetSynthPattern(p) => {
+                UiToAudio::SetSynthPattern(_synth_id, p) => {
                     self.synth_pattern = p;
                     self.synth_note_end_step = None;
                 }
@@ -216,13 +216,13 @@ impl AudioEngine {
                         self.drum_voices[DrumTrackId::OpenHiHat as usize].choke();
                     }
                 }
-                UiToAudio::TriggerSynth(note) => {
+                UiToAudio::TriggerSynth(_synth_id, note) => {
                     self.synth_voice.trigger(&self.synth_pattern.params, note);
                     // Gate for ~half a step (will be released when gate runs out)
                     let samples_per_step = (self.sample_rate * 60.0 / self.transport.bpm / 4.0) as u32;
                     self.synth_gate_samples = samples_per_step * 3 / 4;
                 }
-                UiToAudio::ReleaseSynth => {
+                UiToAudio::ReleaseSynth(_synth_id) => {
                     self.synth_voice.release();
                     self.synth_gate_samples = 0;
                 }
@@ -319,9 +319,11 @@ impl AudioEngine {
                         beat: event.beat,
                         is_bar_start: event.is_bar_start,
                         triggered,
-                        synth_triggered,
+                        synth_a_triggered: synth_triggered,
                         drum_step,
-                        synth_step,
+                        synth_a_step: synth_step,
+                        synth_b_step: 0,
+                        synth_b_triggered: false,
                     });
                 }
             }

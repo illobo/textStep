@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::{App, DrumControlField, FocusSection, ModalAction, ModalState};
 use crate::presets::{PatternMergeMode, PresetTarget};
-use crate::messages::UiToAudio;
+use crate::messages::{SynthId, UiToAudio};
 use crate::sequencer::drum_pattern::{MAX_STEPS, NUM_DRUM_TRACKS, TRACK_IDS};
 use crate::sequencer::project::{NUM_KITS, NUM_PATTERNS};
 use crate::sequencer::synth_pattern::{SynthControlField, MAX_STEPS as SYNTH_MAX_STEPS};
@@ -464,7 +464,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             if let Some(semitone) = synth_key_to_semitone(ch) {
                 let note = (app.ui.synth_octave * 12 + semitone).min(127);
                 // Trigger synth sound
-                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(note));
+                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
                 app.ui.synth_flash = 6;
 
                 // If on synth grid, write note at cursor
@@ -781,7 +781,7 @@ fn handle_synth_grid(app: &mut App, key: KeyEvent) {
                 let note = app.synth_pattern.steps[s].note;
                 app.send_synth_pattern();
                 app.dirty = true;
-                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(note));
+                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
                 app.ui.synth_flash = 6;
             }
         }
@@ -793,7 +793,7 @@ fn handle_synth_grid(app: &mut App, key: KeyEvent) {
                 let note = app.synth_pattern.steps[s].note;
                 app.send_synth_pattern();
                 app.dirty = true;
-                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(note));
+                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
                 app.ui.synth_flash = 6;
             }
         }
@@ -893,7 +893,7 @@ fn handle_synth_controls(app: &mut App, key: KeyEvent) {
             adjust_synth_field(app, PARAM_INCREMENT);
             if has_alt {
                 let note = app.ui.synth_octave * 12 + 12;
-                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(note));
+                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
                 app.ui.synth_flash = 6;
             }
         }
@@ -901,7 +901,7 @@ fn handle_synth_controls(app: &mut App, key: KeyEvent) {
             adjust_synth_field(app, -PARAM_INCREMENT);
             if has_alt {
                 let note = app.ui.synth_octave * 12 + 12;
-                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(note));
+                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
                 app.ui.synth_flash = 6;
             }
         }
@@ -1150,7 +1150,7 @@ fn preview_preset(app: &mut App) {
             if let Some(params) = browser.selected_synth_params() {
                 app.apply_synth_preset(params);
                 let note = app.ui.synth_octave * 12 + 12;
-                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(note));
+                let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
                 app.ui.synth_flash = 6;
             }
         }
