@@ -398,6 +398,14 @@ pub struct ProjectFile {
     pub synth_patterns: Vec<SynthPatternData>,
     #[serde(default)]
     pub active_synth_pattern: usize,
+    #[serde(default)]
+    pub synth_b_kits: Vec<SynthKitData>,
+    #[serde(default)]
+    pub active_synth_b_kit: usize,
+    #[serde(default)]
+    pub synth_b_patterns: Vec<SynthPatternData>,
+    #[serde(default)]
+    pub active_synth_b_pattern: usize,
 }
 
 fn default_bpm() -> f64 { 120.0 }
@@ -452,6 +460,20 @@ impl Default for ProjectFile {
                 ..Default::default()
             });
         }
+        let mut synth_b_patterns = Vec::with_capacity(NUM_PATTERNS);
+        for i in 0..NUM_PATTERNS {
+            synth_b_patterns.push(SynthPatternData {
+                name: format!("Synth B {}", i + 1),
+                ..Default::default()
+            });
+        }
+        let mut synth_b_kits = Vec::with_capacity(NUM_KITS);
+        for i in 0..NUM_KITS {
+            synth_b_kits.push(SynthKitData {
+                name: format!("Synth B Kit {}", i + 1),
+                ..Default::default()
+            });
+        }
         Self {
             textstep: FileHeader::default(),
             metadata: ProjectMetadata {
@@ -471,6 +493,10 @@ impl Default for ProjectFile {
             active_synth_kit: 0,
             synth_patterns,
             active_synth_pattern: 0,
+            synth_b_kits,
+            active_synth_b_kit: 0,
+            synth_b_patterns,
+            active_synth_b_pattern: 0,
         }
     }
 }
@@ -657,6 +683,20 @@ pub fn demo_project() -> ProjectFile {
             ..Default::default()
         });
     }
+    let mut synth_b_patterns = Vec::with_capacity(NUM_PATTERNS);
+    for i in 0..NUM_PATTERNS {
+        synth_b_patterns.push(SynthPatternData {
+            name: format!("Synth B {}", i + 1),
+            ..Default::default()
+        });
+    }
+    let mut synth_b_kits = Vec::with_capacity(NUM_KITS);
+    for i in 0..NUM_KITS {
+        synth_b_kits.push(SynthKitData {
+            name: format!("Synth B Kit {}", i + 1),
+            ..Default::default()
+        });
+    }
 
     ProjectFile {
         textstep: FileHeader::default(),
@@ -677,6 +717,10 @@ pub fn demo_project() -> ProjectFile {
         active_synth_kit: 0,
         synth_patterns,
         active_synth_pattern: 0,
+        synth_b_kits,
+        active_synth_b_kit: 0,
+        synth_b_patterns,
+        active_synth_b_pattern: 0,
     }
 }
 
@@ -792,6 +836,34 @@ impl ProjectFile {
         }
     }
 
+    /// Save synth B pattern steps to project.
+    pub fn save_synth_b_pattern(&mut self, index: usize, pattern: &SynthPattern) {
+        if index < self.synth_b_patterns.len() {
+            self.synth_b_patterns[index] = SynthPatternData::from_synth_pattern(pattern);
+        }
+    }
+
+    /// Load synth B pattern steps from project.
+    pub fn load_synth_b_pattern(&self, index: usize, pattern: &mut SynthPattern) {
+        if let Some(pat_data) = self.synth_b_patterns.get(index) {
+            pat_data.apply_to(pattern);
+        }
+    }
+
+    /// Save synth B kit params to project.
+    pub fn save_synth_b_kit(&mut self, index: usize, params: &SynthParams) {
+        if index < self.synth_b_kits.len() {
+            self.synth_b_kits[index].params = *params;
+        }
+    }
+
+    /// Load synth B kit params into pattern.
+    pub fn load_synth_b_kit(&self, index: usize, pattern: &mut SynthPattern) {
+        if let Some(kit_data) = self.synth_b_kits.get(index) {
+            kit_data.apply_to(pattern);
+        }
+    }
+
     /// Ensure we always have NUM_PATTERNS patterns and NUM_KITS kits.
     pub fn normalize(&mut self) {
         // Migrate old single-kit format: if kits is empty, seed from legacy kit field
@@ -840,6 +912,28 @@ impl ProjectFile {
         }
         if self.active_synth_pattern >= self.synth_patterns.len() {
             self.active_synth_pattern = 0;
+        }
+
+        while self.synth_b_kits.len() < NUM_KITS {
+            let idx = self.synth_b_kits.len();
+            self.synth_b_kits.push(SynthKitData {
+                name: format!("Synth B Kit {}", idx + 1),
+                ..Default::default()
+            });
+        }
+        if self.active_synth_b_kit >= self.synth_b_kits.len() {
+            self.active_synth_b_kit = 0;
+        }
+
+        while self.synth_b_patterns.len() < NUM_PATTERNS {
+            let idx = self.synth_b_patterns.len();
+            self.synth_b_patterns.push(SynthPatternData {
+                name: format!("Synth B {}", idx + 1),
+                ..Default::default()
+            });
+        }
+        if self.active_synth_b_pattern >= self.synth_b_patterns.len() {
+            self.active_synth_b_pattern = 0;
         }
     }
 }
@@ -1036,6 +1130,89 @@ mod tests {
         assert_eq!(proj.kits[0].tracks[0].params.filter, default_half());
         // Remaining kits are defaults
         assert_eq!(proj.kits[1].name, "Kit 2");
+    }
+
+    #[test]
+    fn test_project_roundtrip_dual_synth() {
+        // Create a project with synth B data
+        let mut project = ProjectFile::default();
+
+        // Set synth B pattern data
+        project.synth_b_patterns[0].name = "Test Synth B Pattern".to_string();
+        project.synth_b_patterns[1].name = "Custom Pattern".to_string();
+        project.synth_b_patterns[1].steps[5] = SynthStepData {
+            active: true,
+            note: 60,
+            velocity: 0.8,
+            gate: 0.9,
+            length: 4,
+        };
+
+        // Set synth B kit data
+        project.synth_b_kits[0].name = "Test Synth B Kit".to_string();
+        project.synth_b_kits[0].params.osc1_level = 0.75;
+
+        project.active_synth_b_kit = 2;
+        project.active_synth_b_pattern = 3;
+
+        // Serialize
+        let json = serde_json::to_string(&project).unwrap();
+
+        // Deserialize
+        let mut loaded: ProjectFile = serde_json::from_str(&json).unwrap();
+        loaded.normalize();
+
+        // Verify synth B data survived
+        assert_eq!(loaded.synth_b_patterns[0].name, "Test Synth B Pattern");
+        assert_eq!(loaded.synth_b_patterns[1].name, "Custom Pattern");
+        assert_eq!(loaded.synth_b_patterns[1].steps[5].active, true);
+        assert_eq!(loaded.synth_b_patterns[1].steps[5].note, 60);
+        assert_eq!(loaded.synth_b_patterns[1].steps[5].velocity, 0.8);
+        assert_eq!(loaded.synth_b_kits[0].name, "Test Synth B Kit");
+        assert_eq!(loaded.synth_b_kits[0].params.osc1_level, 0.75);
+        assert_eq!(loaded.active_synth_b_kit, 2);
+        assert_eq!(loaded.active_synth_b_pattern, 3);
+
+        // Verify arrays are properly sized
+        assert_eq!(loaded.synth_b_patterns.len(), NUM_PATTERNS);
+        assert_eq!(loaded.synth_b_kits.len(), NUM_KITS);
+    }
+
+    #[test]
+    fn test_old_project_loads_with_synth_b_defaults() {
+        // Simulate an old project file without synth_b fields
+        let json = r#"{
+            "textstep": {"format_version": 1, "app_version": "0.1.0"},
+            "metadata": {"name": "Old Project"},
+            "kits": [{"name": "Kit 1", "tracks": []}],
+            "active_kit": 0,
+            "patterns": [{"name": "P1", "steps": []}],
+            "active_pattern": 0,
+            "bpm": 120.0,
+            "loop_length": 32,
+            "swing": 0.5,
+            "synth_kits": [{"name": "Synth Kit 1", "params": {}}],
+            "active_synth_kit": 0,
+            "synth_patterns": [{"name": "Synth 1", "steps": []}],
+            "active_synth_pattern": 0
+        }"#;
+
+        let mut project: ProjectFile = serde_json::from_str(json).unwrap();
+        project.normalize();
+
+        // Verify synth_b fields get defaults
+        assert_eq!(project.synth_b_patterns.len(), NUM_PATTERNS);
+        assert_eq!(project.synth_b_kits.len(), NUM_KITS);
+        assert_eq!(project.active_synth_b_kit, 0);
+        assert_eq!(project.active_synth_b_pattern, 0);
+
+        // Default names should be present
+        assert_eq!(project.synth_b_patterns[0].name, "Synth B 1");
+        assert_eq!(project.synth_b_kits[0].name, "Synth B Kit 1");
+
+        // Old data should be intact
+        assert_eq!(project.metadata.name, "Old Project");
+        assert_eq!(project.synth_patterns[0].name, "Synth 1");
     }
 }
 
