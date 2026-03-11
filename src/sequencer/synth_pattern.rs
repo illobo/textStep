@@ -599,10 +599,25 @@ pub fn lfo_division_name(v: f32) -> &'static str {
     LFO_DIVISIONS[lfo_division_index(v)].1
 }
 
+/// Unique display names for LFO destination targets.
+const LFO_DEST_NAMES: [&str; 11] = [
+    "Freq",    // FilterCutoff
+    "Res",     // FilterResonance
+    "O1Tune",  // Osc1Tune
+    "O1PWM",   // Osc1Pwm
+    "O1Lvl",   // Osc1Level
+    "O2Tune",  // Osc2Tune
+    "O2PWM",   // Osc2Pwm
+    "O2Lvl",   // Osc2Level
+    "O2Det",   // Osc2Detune
+    "Sub",     // SubLevel
+    "Vol",     // Volume
+];
+
 /// Get display name for an LFO destination index.
 pub fn lfo_dest_name(idx: u8) -> &'static str {
-    if (idx as usize) < LFO_DEST_FIELDS.len() {
-        LFO_DEST_FIELDS[idx as usize].full_label()
+    if (idx as usize) < LFO_DEST_NAMES.len() {
+        LFO_DEST_NAMES[idx as usize]
     } else {
         "???"
     }
