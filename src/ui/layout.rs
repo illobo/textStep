@@ -138,30 +138,37 @@ pub fn compute_dual_layout(total: Rect, vis: &PanelVisibility) -> DualSynthLayou
         }
     }
 
-    // Build rects by walking y offsets
+    // Build rects by walking y offsets, clamping to terminal bounds
     let x = total.x;
     let w = total.width;
+    let y_max = total.y + total.height; // first row outside the buffer
     let mut y = total.y;
 
     // Transport
-    let transport = Rect::new(x, y, w, TRANSPORT_HEIGHT);
-    y += TRANSPORT_HEIGHT;
+    let transport_h = TRANSPORT_HEIGHT.min(y_max.saturating_sub(y));
+    let transport = Rect::new(x, y, w, transport_h);
+    y += transport_h;
 
-    // Helper: allocate a panel rect and advance y
+    // Helper: allocate a panel rect and advance y, clamping to bounds
     let mut panel_rects: [(Rect, Rect); 7] = [(Rect::default(), Rect::default()); 7];
     for (i, p) in panels.iter().enumerate() {
-        let h = heights[i];
+        let h = heights[i].min(y_max.saturating_sub(y));
+        if h == 0 {
+            // Panel falls entirely outside the terminal — leave as default (empty)
+            continue;
+        }
         let rect = Rect::new(x, y, w, h);
         if p.is_visible {
-            panel_rects[i] = (rect, Rect::default()); // expanded, no collapsed
+            panel_rects[i] = (rect, Rect::default());
         } else {
-            panel_rects[i] = (Rect::default(), rect); // no expanded, collapsed
+            panel_rects[i] = (Rect::default(), rect);
         }
         y += h;
     }
 
-    // Activity bar at the bottom
-    let activity_bar = Rect::new(x, y, w, ACTIVITY_BAR_HEIGHT);
+    // Activity bar at the bottom (gets whatever is left, may be 0)
+    let activity_h = ACTIVITY_BAR_HEIGHT.min(y_max.saturating_sub(y));
+    let activity_bar = Rect::new(x, y, w, activity_h);
 
     DualSynthLayout {
         transport,
@@ -300,6 +307,32 @@ mod tests {
             ly.synth_a_knobs_collapsed.y
         };
         assert_eq!(sa_knobs_y, after_transport);
+    }
+
+    #[test]
+    fn small_terminal_no_panic() {
+        // Terminal too small to fit all panels — must not overflow buffer bounds
+        let vis = PanelVisibility::default();
+        let ly = compute_dual_layout(term(22), &vis);
+
+        // Every rect must stay within [0, 22)
+        let all_rects = [
+            ly.transport,
+            ly.synth_a_knobs, ly.synth_a_knobs_collapsed,
+            ly.synth_a_grid, ly.synth_a_grid_collapsed,
+            ly.synth_b_knobs, ly.synth_b_knobs_collapsed,
+            ly.synth_b_grid, ly.synth_b_grid_collapsed,
+            ly.drum_grid, ly.drum_knobs, ly.drum_knobs_collapsed,
+            ly.waveform, ly.waveform_collapsed,
+            ly.activity_bar,
+        ];
+        for r in &all_rects {
+            assert!(
+                r.y + r.height <= 22,
+                "rect {:?} extends past terminal height 22",
+                r,
+            );
+        }
     }
 
     #[test]
