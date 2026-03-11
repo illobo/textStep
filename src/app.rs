@@ -513,7 +513,6 @@ pub struct UiState {
     pub is_bar_start: bool,
     pub show_help: bool,
     pub show_waveform: bool,
-    pub synth_collapsed: bool,
     pub panel_vis: PanelVisibility,
     /// Per-track trigger flash countdown (> 0 means flashing)
     pub trigger_flash: [u8; NUM_DRUM_TRACKS],
@@ -569,7 +568,6 @@ impl Default for UiState {
             is_bar_start: false,
             show_help: false,
             show_waveform: true,
-            synth_collapsed: false,
             panel_vis: PanelVisibility::default(),
             trigger_flash: [0; NUM_DRUM_TRACKS],
             active_pattern: 0,
