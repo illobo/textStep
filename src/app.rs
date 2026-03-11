@@ -715,14 +715,15 @@ impl App {
                     beat,
                     is_bar_start,
                     triggered,
-                    synth_a_triggered: synth_triggered,
+                    synth_a_triggered,
                     drum_step,
-                    synth_a_step: synth_step,
-                    synth_b_step: _,
-                    synth_b_triggered: _,
+                    synth_a_step,
+                    synth_b_step,
+                    synth_b_triggered,
                 } => {
                     self.ui.playback_step = drum_step;
-                    self.ui.synth_a.playback_step = synth_step;
+                    self.ui.synth_a.playback_step = synth_a_step;
+                    self.ui.synth_b.playback_step = synth_b_step;
                     self.ui.current_beat = beat;
                     self.ui.is_bar_start = is_bar_start;
 
@@ -733,8 +734,8 @@ impl App {
                         }
                     }
 
-                    // Check for queued synth pattern switch at loop wrap (step 0)
-                    if synth_step == 0 && global_step > 0 {
+                    // Check for queued synth A pattern switch at loop wrap (step 0)
+                    if synth_a_step == 0 && global_step > 0 {
                         if let Some(next) = self.ui.synth_a.queued_pattern.take() {
                             self.switch_synth_pattern(next);
                         }
@@ -747,9 +748,12 @@ impl App {
                         }
                     }
 
-                    // Flash synth
-                    if synth_triggered {
+                    // Flash synths
+                    if synth_a_triggered {
                         self.ui.synth_a.flash = FLASH_FRAMES;
+                    }
+                    if synth_b_triggered {
+                        self.ui.synth_b.flash = FLASH_FRAMES;
                     }
                 }
             }
