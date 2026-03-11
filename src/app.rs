@@ -826,18 +826,15 @@ impl App {
             .send(UiToAudio::SetDrumPattern(self.drum_pattern.clone()));
     }
 
-    /// Send the synth pattern to the audio thread.
-    pub fn send_synth_pattern(&self) {
+    /// Send the synth pattern to the audio thread for the specified synth.
+    pub fn send_synth_pattern(&self, synth_id: SynthId) {
+        let pattern = match synth_id {
+            SynthId::A => &self.synth_a_pattern,
+            SynthId::B => &self.synth_b_pattern,
+        };
         let _ = self
             .tx_to_audio
-            .send(UiToAudio::SetSynthPattern(SynthId::A, self.synth_a_pattern.clone()));
-    }
-
-    /// Send the synth B pattern to the audio thread.
-    pub fn send_synth_b_pattern(&self) {
-        let _ = self
-            .tx_to_audio
-            .send(UiToAudio::SetSynthPattern(SynthId::B, self.synth_b_pattern.clone()));
+            .send(UiToAudio::SetSynthPattern(synth_id, pattern.clone()));
     }
 
     /// Send effect params to the audio thread.
@@ -940,7 +937,7 @@ impl App {
         self.project.active_synth_pattern = index;
         self.synth_a_pattern = SynthPattern::default();
         self.project.load_synth_pattern(index, &mut self.synth_a_pattern);
-        self.send_synth_pattern();
+        self.send_synth_pattern(SynthId::A);
     }
 
     /// Queue a synth pattern to switch at end of current loop.
@@ -963,7 +960,7 @@ impl App {
         self.ui.synth_a.active_kit = index;
         self.project.active_synth_kit = index;
         self.project.load_synth_kit(index, &mut self.synth_a_pattern);
-        self.send_synth_pattern();
+        self.send_synth_pattern(SynthId::A);
     }
 
     // ── Focus-aware synth helpers (dual synth) ─────────────────────────
@@ -978,13 +975,13 @@ impl App {
                 self.project.active_synth_pattern = index;
                 self.synth_a_pattern = SynthPattern::default();
                 self.project.load_synth_pattern(index, &mut self.synth_a_pattern);
-                self.send_synth_pattern();
+                self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
                 // For synth B, use synth_b_pattern (project B storage is a future task)
                 self.ui.synth_b.active_pattern = index;
                 self.synth_b_pattern = SynthPattern::default();
-                self.send_synth_b_pattern();
+                self.send_synth_pattern(SynthId::B);
             }
         }
     }
@@ -1012,12 +1009,12 @@ impl App {
                 self.ui.synth_a.active_kit = index;
                 self.project.active_synth_kit = index;
                 self.project.load_synth_kit(index, &mut self.synth_a_pattern);
-                self.send_synth_pattern();
+                self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
                 // For synth B, just update UI state (project B storage is a future task)
                 self.ui.synth_b.active_kit = index;
-                self.send_synth_b_pattern();
+                self.send_synth_pattern(SynthId::B);
             }
         }
     }
@@ -1252,10 +1249,16 @@ impl App {
 
     pub fn apply_synth_pattern_preset(
         &mut self,
+        synth_id: SynthId,
         preset_steps: &[(u8, u8, u8); crate::sequencer::synth_pattern::MAX_STEPS],
         merge: crate::presets::PatternMergeMode,
     ) {
         use crate::sequencer::synth_pattern::{MAX_STEPS, SynthStep};
+
+        let pattern = match synth_id {
+            SynthId::A => &mut self.synth_a_pattern,
+            SynthId::B => &mut self.synth_b_pattern,
+        };
 
         let fill_len = if self.transport.loop_config.enabled {
             self.transport.loop_config.synth_a_length as usize
@@ -1273,27 +1276,31 @@ impl App {
             if vel > 0 {
                 match merge {
                     crate::presets::PatternMergeMode::Replace => {
-                        self.synth_a_pattern.steps[s] = SynthStep { note, velocity: vel, length: len };
+                        pattern.steps[s] = SynthStep { note, velocity: vel, length: len };
                     }
                     crate::presets::PatternMergeMode::Layer => {
-                        if !self.synth_a_pattern.steps[s].is_active() {
-                            self.synth_a_pattern.steps[s] = SynthStep { note, velocity: vel, length: len };
+                        if !pattern.steps[s].is_active() {
+                            pattern.steps[s] = SynthStep { note, velocity: vel, length: len };
                         }
                     }
                 }
             } else if matches!(merge, crate::presets::PatternMergeMode::Replace) {
-                self.synth_a_pattern.steps[s] = SynthStep::default();
+                pattern.steps[s] = SynthStep::default();
             }
         }
-        self.send_synth_pattern();
+        self.send_synth_pattern(synth_id);
         self.dirty = true;
     }
 
-    pub fn apply_synth_preset(&mut self, params: crate::sequencer::synth_pattern::SynthParams) {
-        let mute = self.synth_a_pattern.params.mute;
-        self.synth_a_pattern.params = params;
-        self.synth_a_pattern.params.mute = mute;
-        self.send_synth_pattern();
+    pub fn apply_synth_preset(&mut self, synth_id: SynthId, params: crate::sequencer::synth_pattern::SynthParams) {
+        let pattern = match synth_id {
+            SynthId::A => &mut self.synth_a_pattern,
+            SynthId::B => &mut self.synth_b_pattern,
+        };
+        let mute = pattern.params.mute;
+        pattern.params = params;
+        pattern.params.mute = mute;
+        self.send_synth_pattern(synth_id);
         self.dirty = true;
     }
 
@@ -1330,7 +1337,7 @@ impl App {
                 self.synth_a_pattern = SynthPattern::default();
                 self.project.load_synth_pattern(self.ui.synth_a.active_pattern, &mut self.synth_a_pattern);
                 self.project.load_synth_kit(self.ui.synth_a.active_kit, &mut self.synth_a_pattern);
-                self.send_synth_pattern();
+                self.send_synth_pattern(SynthId::A);
 
                 self.dirty = false;
                 self.show_status(format!("Loaded: {}", name));

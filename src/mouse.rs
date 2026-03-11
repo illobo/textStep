@@ -76,7 +76,7 @@ fn handle_scroll(app: &mut App, col: u16, row: u16, delta: f32, term_size: Rect)
         if !field.is_enum() {
             let current = field.get(&app.synth_a_pattern.params);
             field.set(&mut app.synth_a_pattern.params, (current + delta).clamp(0.0, 1.0));
-            app.send_synth_pattern();
+            app.send_synth_pattern(SynthId::A);
             app.dirty = true;
         }
     } else if hit_test_area(col, row, ly.synth_b_knobs) {
@@ -85,7 +85,7 @@ fn handle_scroll(app: &mut App, col: u16, row: u16, delta: f32, term_size: Rect)
         if !field.is_enum() {
             let current = field.get(&app.synth_b_pattern.params);
             field.set(&mut app.synth_b_pattern.params, (current + delta).clamp(0.0, 1.0));
-            app.send_synth_b_pattern();
+            app.send_synth_pattern(SynthId::B);
             app.dirty = true;
         }
     } else if hit_test_compressor_gauge(col, row, ly.transport) {
@@ -305,8 +305,8 @@ fn handle_synth_step_click(app: &mut App, synth_id: SynthId, step: usize) {
             pattern.steps[step] = SynthStep { note, velocity: 100, length: 1 };
         }
         match synth_id {
-            SynthId::A => app.send_synth_pattern(),
-            SynthId::B => app.send_synth_b_pattern(),
+            SynthId::A => app.send_synth_pattern(SynthId::A),
+            SynthId::B => app.send_synth_pattern(SynthId::B),
         }
         app.dirty = true;
         app.ui.mouse.last_click = None;
@@ -328,10 +328,7 @@ fn handle_synth_step_click(app: &mut App, synth_id: SynthId, step: usize) {
             use crate::sequencer::synth_pattern::SynthStep;
             let note = 60 + (ui_state.octave as u8).wrapping_sub(4) * 12;
             pattern.steps[step] = SynthStep { note, velocity: 100, length: 1 };
-            match synth_id {
-                SynthId::A => app.send_synth_pattern(),
-                SynthId::B => app.send_synth_b_pattern(),
-            }
+            app.send_synth_pattern(synth_id);
             app.dirty = true;
             app.ui.mouse.synth_note_drag = Some(SynthNoteDrag {
                 synth_id,
@@ -582,8 +579,8 @@ fn handle_synth_knobs_click(app: &mut App, synth_id: SynthId, field: SynthContro
         let new_int = (cur_int + 1) % (max_val + 1);
         field.set(&mut pattern.params, new_int as f32 / max_val as f32);
         match synth_id {
-            SynthId::A => app.send_synth_pattern(),
-            SynthId::B => app.send_synth_b_pattern(),
+            SynthId::A => app.send_synth_pattern(SynthId::A),
+            SynthId::B => app.send_synth_pattern(SynthId::B),
         }
         app.dirty = true;
         return;
@@ -816,10 +813,7 @@ fn handle_drag(app: &mut App, col: u16, row: u16, _term_size: Rect) {
         };
         if pattern.steps[drag.step].length != clamped {
             pattern.steps[drag.step].length = clamped;
-            match drag.synth_id {
-                SynthId::A => app.send_synth_pattern(),
-                SynthId::B => app.send_synth_b_pattern(),
-            }
+            app.send_synth_pattern(drag.synth_id);
             app.dirty = true;
         }
         return;
@@ -848,8 +842,8 @@ fn handle_drag(app: &mut App, col: u16, row: u16, _term_size: Rect) {
         };
         d.field.set(&mut pattern.params, new_value);
         match d.synth_id {
-            SynthId::A => app.send_synth_pattern(),
-            SynthId::B => app.send_synth_b_pattern(),
+            SynthId::A => app.send_synth_pattern(SynthId::A),
+            SynthId::B => app.send_synth_pattern(SynthId::B),
         }
         app.dirty = true;
         return;
@@ -1033,7 +1027,7 @@ fn handle_fader_drag(app: &mut App, row: u16) {
         }
         FaderKind::Synth => {
             app.synth_a_pattern.params.volume = new_value;
-            app.send_synth_pattern();
+            app.send_synth_pattern(SynthId::A);
         }
     }
     app.dirty = true;

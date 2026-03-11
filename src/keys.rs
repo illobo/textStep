@@ -81,10 +81,7 @@ fn synth_ui_and_pattern(app: &mut App, synth_id: SynthId) -> (&mut crate::app::S
 
 /// Send the appropriate synth pattern to the audio thread.
 fn send_synth(app: &App, synth_id: SynthId) {
-    match synth_id {
-        SynthId::A => app.send_synth_pattern(),
-        SynthId::B => app.send_synth_b_pattern(),
-    }
+    app.send_synth_pattern(synth_id);
 }
 
 /// Main key event handler — dispatches based on modal state first.
@@ -539,10 +536,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
                     let s = ui.cursor_step;
                     pattern.steps[s].note = note;
                     pattern.steps[s].velocity = 100;
-                    match synth_id {
-                        SynthId::A => app.send_synth_pattern(),
-                        SynthId::B => app.send_synth_b_pattern(),
-                    }
+                    app.send_synth_pattern(synth_id);
                     app.dirty = true;
                     // Advance cursor
                     // Re-borrow to avoid conflict — we already wrote above
@@ -565,10 +559,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
                         };
                         pattern.steps[step].note = note;
                         pattern.steps[step].velocity = 100;
-                        match synth_id {
-                            SynthId::A => app.send_synth_pattern(),
-                            SynthId::B => app.send_synth_b_pattern(),
-                        }
+                        app.send_synth_pattern(synth_id);
                         app.dirty = true;
                     }
                 }
@@ -1170,7 +1161,7 @@ fn handle_preset_browser(app: &mut App, key: KeyEvent) {
                 PresetTarget::SynthSound => {
                     if let Some(params) = browser.selected_synth_params() {
                         let name = browser.preset_names.get(browser.preset_idx).copied().unwrap_or("?");
-                        app.apply_synth_preset(params);
+                        app.apply_synth_preset(SynthId::A, params);
                         app.ui.modal = ModalState::None;
                         app.show_status(format!("Loaded: {}", name));
                     }
@@ -1234,7 +1225,7 @@ fn handle_pattern_browser(app: &mut App, key: KeyEvent) {
                 app.show_status(format!("{}: {}", mode_label, name));
             } else if let Some(preset) = pb.browser.selected_synth_pattern() {
                 let name = preset.name;
-                app.apply_synth_pattern_preset(&preset.steps, merge);
+                app.apply_synth_pattern_preset(SynthId::A, &preset.steps, merge);
                 app.show_status(format!("{}: {}", mode_label, name));
             }
         }
@@ -1265,7 +1256,7 @@ fn preview_preset(app: &mut App) {
         }
         PresetTarget::SynthSound => {
             if let Some(params) = browser.selected_synth_params() {
-                app.apply_synth_preset(params);
+                app.apply_synth_preset(SynthId::A, params);
                 let note = app.ui.synth_a.octave * 12 + 12;
                 let _ = app.tx_to_audio.send(UiToAudio::TriggerSynth(SynthId::A, note));
                 app.ui.synth_a.flash = 6;
