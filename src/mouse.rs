@@ -448,8 +448,7 @@ fn hit_test_synth_knobs(col: u16, row: u16, knobs_area: Rect) -> Option<SynthCon
         .constraints([
             Constraint::Length(8),  // OSC1 + OSC2
             Constraint::Length(8),  // ENV1 + ENV2 + FILT
-            Constraint::Length(3),  // LFO
-            Constraint::Min(7),    // AMP
+            Constraint::Min(7),    // AMP (left) + LFO (right)
         ])
         .split(inner);
 
@@ -527,44 +526,53 @@ fn hit_test_synth_knobs(col: u16, row: u16, knobs_area: Rect) -> Option<SynthCon
         return None;
     }
 
-    // ── Row group 2: LFO ──────────────────────────────────────────────────
+    // ── Row group 2: AMP (left) + LFO (right) ─────────────────────────────
     if hit_test_area(col, row, row_groups[2]) {
-        let col_width = row_groups[2].width as usize / 4;
-        if col_width > 0 {
-            let rel_x = (col - row_groups[2].x) as usize;
-            let idx = (rel_x / col_width).min(3);
-            return match idx {
-                0 => Some(SynthControlField::LfoWaveform),
-                1 => Some(SynthControlField::LfoDivision),
-                2 => Some(SynthControlField::LfoDepth),
-                _ => Some(SynthControlField::LfoDest),
-            };
-        }
-        return Some(SynthControlField::LfoWaveform);
-    }
+        let cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // AMP
+                Constraint::Percentage(50), // LFO
+            ])
+            .split(row_groups[2]);
 
-    // ── Row group 3: AMP ─────────────────────────────────────────────────
-    if hit_test_area(col, row, row_groups[3]) {
-        let amp_w = row_groups[3].width.min(40);
-        let amp_body = Rect::new(
-            row_groups[3].x,
-            row_groups[3].y + 1,
-            amp_w,
-            row_groups[3].height.saturating_sub(1),
-        );
-        if hit_test_area(col, row, amp_body) {
-            let col_width = amp_w as usize / 4;
+        if hit_test_area(col, row, cols[0]) {
+            // AMP: skip header row
+            let amp_body = Rect::new(
+                cols[0].x,
+                cols[0].y + 1,
+                cols[0].width,
+                cols[0].height.saturating_sub(1),
+            );
+            if hit_test_area(col, row, amp_body) {
+                let col_width = cols[0].width as usize / 4;
+                if col_width > 0 {
+                    let rel_x = (col - amp_body.x) as usize;
+                    let idx = (rel_x / col_width).min(3);
+                    return match idx {
+                        0 => Some(SynthControlField::Volume),
+                        1 => Some(SynthControlField::SendReverb),
+                        2 => Some(SynthControlField::SendDelay),
+                        _ => Some(SynthControlField::Volume), // Sat not a synth field
+                    };
+                }
+            }
+            return Some(SynthControlField::Volume);
+        } else if hit_test_area(col, row, cols[1]) {
+            // LFO
+            let col_width = cols[1].width as usize / 4;
             if col_width > 0 {
-                let rel_x = (col - amp_body.x) as usize;
-                let idx = (rel_x / col_width).min(2);
+                let rel_x = (col - cols[1].x) as usize;
+                let idx = (rel_x / col_width).min(3);
                 return match idx {
-                    0 => Some(SynthControlField::Volume),
-                    1 => Some(SynthControlField::SendReverb),
-                    _ => Some(SynthControlField::SendDelay),
+                    0 => Some(SynthControlField::LfoWaveform),
+                    1 => Some(SynthControlField::LfoDivision),
+                    2 => Some(SynthControlField::LfoDepth),
+                    _ => Some(SynthControlField::LfoDest),
                 };
             }
+            return Some(SynthControlField::LfoWaveform);
         }
-        return Some(SynthControlField::Volume);
     }
 
     None
