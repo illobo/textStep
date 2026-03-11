@@ -17,8 +17,8 @@ pub const KNOBS_HEIGHT: u16 = 9;
 /// Alias used by the new dual-synth layout.
 pub const DRUM_KNOBS_HEIGHT: u16 = KNOBS_HEIGHT;
 
-/// Height of the synth knobs panel (OSC 8 + ENV/FILT 8 + LFO 3 + AMP 7 + 2 border = 30).
-pub const SYNTH_KNOBS_HEIGHT: u16 = 30;
+/// Height of the synth knobs panel (OSC 8 + ENV/FILT 8 + AMP+LFO 7 + 2 border = 25).
+pub const SYNTH_KNOBS_HEIGHT: u16 = 25;
 
 /// Height of the synth step row (2 border + header + spacer + step row + spacer = 6).
 pub const SYNTH_GRID_HEIGHT: u16 = 6;

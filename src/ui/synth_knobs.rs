@@ -98,14 +98,13 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App, synth_id: SynthI
     let params = &pattern.params;
     let sel = ui.ctrl_field;
 
-    // Split inner into 4 row groups: OSC (8), ENV+FILT (8), LFO (3), AMP (remaining)
+    // Split inner into 3 row groups: OSC (8), ENV+FILT (8), AMP+LFO (remaining)
     let row_groups = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(8), // Row group 1: OSC1 + OSC2
             Constraint::Length(8), // Row group 2: ENV1 + ENV2 + FILT
-            Constraint::Length(3), // Row group 3: LFO
-            Constraint::Min(7),   // Row group 4: AMP
+            Constraint::Min(7),   // Row group 3: AMP (left) + LFO (right)
         ])
         .split(inner);
 
@@ -204,30 +203,35 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App, synth_id: SynthI
         render_adsr_bars(f, filt_split[1], params, FILT_ENV_ADSR, sel, focused);
     }
 
-    // ── Row group 3: LFO ────────────────────────────────────────────────
+    // ── Row group 3: AMP (left) + LFO (right) ─────────────────────────
     {
-        render_section_header(f, row_groups[2], "LFO");
+        let cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // AMP
+                Constraint::Percentage(50), // LFO
+            ])
+            .split(row_groups[2]);
+
+        // AMP section
+        render_section_header(f, cols[0], "AMP");
+        let amp_body = Rect::new(
+            cols[0].x,
+            cols[0].y + 1,
+            cols[0].width,
+            cols[0].height.saturating_sub(1),
+        );
+        render_amp_group(f, amp_body, params, app.effect_params.synth_saturator_drive, sel, focused);
+
+        // LFO section
+        render_section_header(f, cols[1], "LFO");
         let lfo_body = Rect::new(
-            row_groups[2].x,
-            row_groups[2].y + 1,
-            row_groups[2].width,
-            row_groups[2].height.saturating_sub(1),
+            cols[1].x,
+            cols[1].y + 1,
+            cols[1].width,
+            cols[1].height.saturating_sub(1),
         );
         render_lfo_row(f, lfo_body, params, sel, focused);
-    }
-
-    // ── Row group 4: AMP ────────────────────────────────────────────────
-    {
-        render_section_header(f, row_groups[3], "AMP");
-
-        let amp_body = Rect::new(
-            row_groups[3].x,
-            row_groups[3].y + 1,
-            row_groups[3].width.min(40),
-            row_groups[3].height.saturating_sub(1),
-        );
-
-        render_amp_group(f, amp_body, params, app.effect_params.synth_saturator_drive, sel, focused);
     }
 }
 
