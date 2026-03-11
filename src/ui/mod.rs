@@ -65,7 +65,9 @@ pub fn render(f: &mut Frame, app: &App) {
         synth_knobs::render_synth_knobs(f, ly.synth_a_knobs, app, SynthId::A);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthAControls);
-        render_collapsed_bar(f, ly.synth_a_knobs_collapsed, "SYNTH A KNOBS", focused);
+        let label = format!("SYNTH A KNOBS  Pat[{}] Kit[{}]",
+            app.ui.synth_a.active_pattern + 1, app.ui.synth_a.active_kit + 1);
+        render_collapsed_bar(f, ly.synth_a_knobs_collapsed, &label, focused);
     }
 
     // ── Synth A Grid ─────────────────────────────────────────────
@@ -73,7 +75,8 @@ pub fn render(f: &mut Frame, app: &App) {
         synth_grid::render_synth_grid(f, ly.synth_a_grid, app, SynthId::A);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthAGrid);
-        render_collapsed_bar(f, ly.synth_a_grid_collapsed, "SYNTH A GRID", focused);
+        let label = format!("SYNTH A GRID  Pat[{}]", app.ui.synth_a.active_pattern + 1);
+        render_collapsed_bar(f, ly.synth_a_grid_collapsed, &label, focused);
     }
 
     // ── Synth B Knobs ────────────────────────────────────────────
@@ -81,7 +84,9 @@ pub fn render(f: &mut Frame, app: &App) {
         synth_knobs::render_synth_knobs(f, ly.synth_b_knobs, app, SynthId::B);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthBControls);
-        render_collapsed_bar(f, ly.synth_b_knobs_collapsed, "SYNTH B KNOBS", focused);
+        let label = format!("SYNTH B KNOBS  Pat[{}] Kit[{}]",
+            app.ui.synth_b.active_pattern + 1, app.ui.synth_b.active_kit + 1);
+        render_collapsed_bar(f, ly.synth_b_knobs_collapsed, &label, focused);
     }
 
     // ── Synth B Grid ─────────────────────────────────────────────
@@ -89,7 +94,8 @@ pub fn render(f: &mut Frame, app: &App) {
         synth_grid::render_synth_grid(f, ly.synth_b_grid, app, SynthId::B);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::SynthBGrid);
-        render_collapsed_bar(f, ly.synth_b_grid_collapsed, "SYNTH B GRID", focused);
+        let label = format!("SYNTH B GRID  Pat[{}]", app.ui.synth_b.active_pattern + 1);
+        render_collapsed_bar(f, ly.synth_b_grid_collapsed, &label, focused);
     }
 
     // ── Drum Grid ────────────────────────────────────────────────
@@ -102,7 +108,9 @@ pub fn render(f: &mut Frame, app: &App) {
         knobs::render_knobs(f, ly.drum_knobs, app);
     } else {
         let focused = matches!(app.ui.focus, FocusSection::Knobs);
-        render_collapsed_bar(f, ly.drum_knobs_collapsed, "DRUM KNOBS", focused);
+        let label = format!("DRUM KNOBS  Pat[{}] Kit[{}]",
+            app.ui.active_pattern + 1, app.ui.active_kit + 1);
+        render_collapsed_bar(f, ly.drum_knobs_collapsed, &label, focused);
     }
 
     // ── Waveform ─────────────────────────────────────────────────
