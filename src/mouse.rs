@@ -448,7 +448,7 @@ fn hit_test_synth_knobs(col: u16, row: u16, knobs_area: Rect) -> Option<SynthCon
         .constraints([
             Constraint::Length(8),  // OSC1 + OSC2
             Constraint::Length(8),  // ENV1 + ENV2 + FILT
-            Constraint::Min(7),    // AMP (left) + LFO (right)
+            Constraint::Min(7),    // AMP (left) + LFO1 (center) + LFO2 (right)
         ])
         .split(inner);
 
@@ -526,13 +526,14 @@ fn hit_test_synth_knobs(col: u16, row: u16, knobs_area: Rect) -> Option<SynthCon
         return None;
     }
 
-    // ── Row group 2: AMP (left) + LFO (right) ─────────────────────────────
+    // ── Row group 2: AMP (left) + LFO1 (center) + LFO2 (right) ────────
     if hit_test_area(col, row, row_groups[2]) {
         let cols = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(50), // AMP
-                Constraint::Percentage(50), // LFO
+                Constraint::Percentage(34), // AMP
+                Constraint::Percentage(33), // LFO1
+                Constraint::Percentage(33), // LFO2
             ])
             .split(row_groups[2]);
 
@@ -559,7 +560,7 @@ fn hit_test_synth_knobs(col: u16, row: u16, knobs_area: Rect) -> Option<SynthCon
             }
             return Some(SynthControlField::Volume);
         } else if hit_test_area(col, row, cols[1]) {
-            // LFO
+            // LFO1
             let col_width = cols[1].width as usize / 4;
             if col_width > 0 {
                 let rel_x = (col - cols[1].x) as usize;
@@ -572,6 +573,20 @@ fn hit_test_synth_knobs(col: u16, row: u16, knobs_area: Rect) -> Option<SynthCon
                 };
             }
             return Some(SynthControlField::LfoWaveform);
+        } else if hit_test_area(col, row, cols[2]) {
+            // LFO2
+            let col_width = cols[2].width as usize / 4;
+            if col_width > 0 {
+                let rel_x = (col - cols[2].x) as usize;
+                let idx = (rel_x / col_width).min(3);
+                return match idx {
+                    0 => Some(SynthControlField::Lfo2Waveform),
+                    1 => Some(SynthControlField::Lfo2Division),
+                    2 => Some(SynthControlField::Lfo2Depth),
+                    _ => Some(SynthControlField::Lfo2Dest),
+                };
+            }
+            return Some(SynthControlField::Lfo2Waveform);
         }
     }
 

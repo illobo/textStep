@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use crate::app::{App, FocusSection};
 use crate::messages::SynthId;
-use crate::sequencer::synth_pattern::{SynthControlField, lfo_waveform_name, lfo_division_name, lfo_dest_name};
+use crate::sequencer::synth_pattern::{SynthControlField, lfo_waveform_name, lfo_division_name, lfo_dest_name, SynthParams};
 use crate::ui::theme;
 
 /// Height of the vertical slider bars.
@@ -203,13 +203,14 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App, synth_id: SynthI
         render_adsr_bars(f, filt_split[1], params, FILT_ENV_ADSR, sel, focused);
     }
 
-    // ── Row group 3: AMP (left) + LFO (right) ─────────────────────────
+    // ── Row group 3: AMP (left) + LFO1 (center) + LFO2 (right) ────────
     {
         let cols = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(50), // AMP
-                Constraint::Percentage(50), // LFO
+                Constraint::Percentage(34), // AMP
+                Constraint::Percentage(33), // LFO1
+                Constraint::Percentage(33), // LFO2
             ])
             .split(row_groups[2]);
 
@@ -223,15 +224,25 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App, synth_id: SynthI
         );
         render_amp_group(f, amp_body, params, app.effect_params.synth_saturator_drive, sel, focused);
 
-        // LFO section
-        render_section_header(f, cols[1], "LFO");
-        let lfo_body = Rect::new(
+        // LFO1 section
+        render_section_header(f, cols[1], "LFO1");
+        let lfo1_body = Rect::new(
             cols[1].x,
             cols[1].y + 1,
             cols[1].width,
             cols[1].height.saturating_sub(1),
         );
-        render_lfo_row(f, lfo_body, params, sel, focused);
+        render_lfo_row(f, lfo1_body, params, sel, focused, false);
+
+        // LFO2 section
+        render_section_header(f, cols[2], "LFO2");
+        let lfo2_body = Rect::new(
+            cols[2].x,
+            cols[2].y + 1,
+            cols[2].width,
+            cols[2].height.saturating_sub(1),
+        );
+        render_lfo_row(f, lfo2_body, params, sel, focused, true);
     }
 }
 
@@ -520,13 +531,27 @@ fn render_adsr_bars(
 fn render_lfo_row(
     f: &mut Frame,
     area: Rect,
-    params: &crate::sequencer::synth_pattern::SynthParams,
+    params: &SynthParams,
     selected: SynthControlField,
     focused: bool,
+    is_lfo2: bool,
 ) {
-    if area.height < 2 || area.width < 20 {
+    if area.height < 2 || area.width < 16 {
         return;
     }
+
+    let (wave_field, div_field, depth_field, dest_field) = if is_lfo2 {
+        (SynthControlField::Lfo2Waveform, SynthControlField::Lfo2Division,
+         SynthControlField::Lfo2Depth, SynthControlField::Lfo2Dest)
+    } else {
+        (SynthControlField::LfoWaveform, SynthControlField::LfoDivision,
+         SynthControlField::LfoDepth, SynthControlField::LfoDest)
+    };
+    let (waveform, division, depth, dest) = if is_lfo2 {
+        (params.lfo2_waveform, params.lfo2_division, params.lfo2_depth, params.lfo2_dest)
+    } else {
+        (params.lfo_waveform, params.lfo_division, params.lfo_depth, params.lfo_dest)
+    };
 
     let col_width = (area.width as usize) / 4;
 
@@ -535,8 +560,8 @@ fn render_lfo_row(
         let mut spans: Vec<Span> = Vec::new();
 
         // Wave selector
-        let wave_sel = focused && selected == SynthControlField::LfoWaveform;
-        let wave_name = lfo_waveform_name(params.lfo_waveform);
+        let wave_sel = focused && selected == wave_field;
+        let wave_name = lfo_waveform_name(waveform);
         let wave_color = if wave_sel { theme::PINK } else { theme::AMBER };
         let wave_str = format!("[{}]", wave_name);
         spans.push(Span::styled(
@@ -545,8 +570,8 @@ fn render_lfo_row(
         ));
 
         // Division selector
-        let div_sel = focused && selected == SynthControlField::LfoDivision;
-        let div_name = lfo_division_name(params.lfo_division);
+        let div_sel = focused && selected == div_field;
+        let div_name = lfo_division_name(division);
         let div_color = if div_sel { theme::PINK } else { theme::AMBER };
         spans.push(Span::styled(
             format!("{:^width$}", div_name, width = col_width),
@@ -554,10 +579,10 @@ fn render_lfo_row(
         ));
 
         // Depth: horizontal bar
-        let depth_sel = focused && selected == SynthControlField::LfoDepth;
+        let depth_sel = focused && selected == depth_field;
         let depth_color = if depth_sel { theme::PINK } else { theme::AMBER };
         let bar_width = col_width.saturating_sub(2);
-        let filled = (params.lfo_depth * bar_width as f32).round() as usize;
+        let filled = (depth * bar_width as f32).round() as usize;
         let empty = bar_width.saturating_sub(filled);
         let bar = format!("{}{}", "\u{2588}".repeat(filled), "\u{2591}".repeat(empty));
         spans.push(Span::raw(" "));
@@ -565,8 +590,8 @@ fn render_lfo_row(
         spans.push(Span::raw(" ".repeat(col_width.saturating_sub(bar_width + 1))));
 
         // Dest selector
-        let dest_sel = focused && selected == SynthControlField::LfoDest;
-        let dest_name = lfo_dest_name(params.lfo_dest);
+        let dest_sel = focused && selected == dest_field;
+        let dest_name = lfo_dest_name(dest);
         let dest_color = if dest_sel { theme::PINK } else { theme::AMBER };
         let dest_str = format!("[{}]", dest_name);
         spans.push(Span::styled(
@@ -586,10 +611,10 @@ fn render_lfo_row(
         let mut spans: Vec<Span> = Vec::new();
         for (i, label) in labels.iter().enumerate() {
             let is_sel = focused && match i {
-                0 => selected == SynthControlField::LfoWaveform,
-                1 => selected == SynthControlField::LfoDivision,
-                2 => selected == SynthControlField::LfoDepth,
-                3 => selected == SynthControlField::LfoDest,
+                0 => selected == wave_field,
+                1 => selected == div_field,
+                2 => selected == depth_field,
+                3 => selected == dest_field,
                 _ => false,
             };
             let style = if is_sel {

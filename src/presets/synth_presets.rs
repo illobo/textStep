@@ -23,6 +23,7 @@ const fn sp(
         filter_type, filter_cutoff, filter_resonance, filter_env_amount,
         filter_env_attack: fenv_a, filter_env_decay: fenv_d, filter_env_sustain: fenv_s, filter_env_release: fenv_r,
         lfo_waveform: 1, lfo_division: 0.47, lfo_depth: 0.0, lfo_dest: 0,
+        lfo2_waveform: 0, lfo2_division: 0.47, lfo2_depth: 0.0, lfo2_dest: 2,
         volume,
         send_reverb: 0.2, send_delay: 0.0,
         mute: false,

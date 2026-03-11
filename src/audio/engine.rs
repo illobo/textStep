@@ -82,6 +82,7 @@ pub struct SynthInstance {
     pub gate_samples: u32,
     pub note_end_step: Option<usize>,
     pub lfo: Lfo,
+    pub lfo2: Lfo,
     pub saturator: TubeSaturator,
     pub reverb: ReverbEffect,
     pub delay: DelayEffect,
@@ -100,6 +101,7 @@ impl SynthInstance {
             gate_samples: 0,
             note_end_step: None,
             lfo: Lfo::new(),
+            lfo2: Lfo::new(),
             saturator: TubeSaturator::new(sample_rate as f32),
             reverb: ReverbEffect::new(sample_rate),
             delay: DelayEffect::new(),
@@ -470,6 +472,22 @@ impl AudioEngine {
                         field.set(&mut modulated_params, current + mod_amount);
                     }
                 }
+                if synth_params.lfo2_depth > 0.001 {
+                    let div_mult = lfo_division_multiplier(synth_params.lfo2_division);
+                    let lfo_val = self.synth_a.lfo2.tick(
+                        self.sample_rate,
+                        self.transport.bpm,
+                        div_mult,
+                        synth_params.lfo2_waveform,
+                    );
+                    let mod_amount = lfo_val * synth_params.lfo2_depth;
+                    let dest_idx = synth_params.lfo2_dest as usize;
+                    if dest_idx < LFO_DEST_FIELDS.len() {
+                        let field = LFO_DEST_FIELDS[dest_idx];
+                        let current = field.get(&modulated_params);
+                        field.set(&mut modulated_params, current + mod_amount);
+                    }
+                }
                 let synth_sample = self.synth_a.voice.tick(&modulated_params);
                 let mut synth_dry: f32 = 0.0;
                 if !self.synth_a.pattern.params.mute {
@@ -497,6 +515,22 @@ impl AudioEngine {
                     );
                     let mod_amount = lfo_val * synth_params.lfo_depth;
                     let dest_idx = synth_params.lfo_dest as usize;
+                    if dest_idx < LFO_DEST_FIELDS.len() {
+                        let field = LFO_DEST_FIELDS[dest_idx];
+                        let current = field.get(&modulated_params);
+                        field.set(&mut modulated_params, current + mod_amount);
+                    }
+                }
+                if synth_params.lfo2_depth > 0.001 {
+                    let div_mult = lfo_division_multiplier(synth_params.lfo2_division);
+                    let lfo_val = self.synth_b.lfo2.tick(
+                        self.sample_rate,
+                        self.transport.bpm,
+                        div_mult,
+                        synth_params.lfo2_waveform,
+                    );
+                    let mod_amount = lfo_val * synth_params.lfo2_depth;
+                    let dest_idx = synth_params.lfo2_dest as usize;
                     if dest_idx < LFO_DEST_FIELDS.len() {
                         let field = LFO_DEST_FIELDS[dest_idx];
                         let current = field.get(&modulated_params);

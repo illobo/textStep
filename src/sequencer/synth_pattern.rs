@@ -14,6 +14,9 @@ pub struct SynthStep {
 }
 
 fn default_length() -> u8 { 1 }
+fn default_lfo2_waveform() -> u8 { 0 } // Sine
+fn default_lfo2_division() -> f32 { 0.47 } // ~1/4 note
+fn default_lfo2_dest() -> u8 { 2 } // Osc1Tune (pitch vibrato)
 
 impl Default for SynthStep {
     fn default() -> Self {
@@ -111,7 +114,7 @@ pub struct SynthParams {
     #[serde(default)]
     pub filter_env_release: f32,
 
-    // LFO
+    // LFO1
     #[serde(default)]
     pub lfo_waveform: u8,   // 0=Sine, 1=Triangle, 2=SawDn, 3=SawUp, 4=Square, 5=Exp
     #[serde(default)]
@@ -120,6 +123,16 @@ pub struct SynthParams {
     pub lfo_depth: f32,     // 0.0-1.0
     #[serde(default)]
     pub lfo_dest: u8,       // index into LFO_DEST_FIELDS
+
+    // LFO2
+    #[serde(default = "default_lfo2_waveform")]
+    pub lfo2_waveform: u8,
+    #[serde(default = "default_lfo2_division")]
+    pub lfo2_division: f32,
+    #[serde(default)]
+    pub lfo2_depth: f32,
+    #[serde(default = "default_lfo2_dest")]
+    pub lfo2_dest: u8,
 
     // Output
     #[serde(default)]
@@ -177,11 +190,17 @@ impl Default for SynthParams {
             filter_env_sustain: 0.0,
             filter_env_release: 0.2,
 
-            // LFO: off by default
+            // LFO1: off by default
             lfo_waveform: 1, // Triangle
             lfo_division: 0.47, // ~1/4 note
             lfo_depth: 0.0,
             lfo_dest: 0, // FilterCutoff
+
+            // LFO2: off by default
+            lfo2_waveform: 0, // Sine
+            lfo2_division: 0.47,
+            lfo2_depth: 0.0,
+            lfo2_dest: 2, // Osc1Tune (pitch vibrato)
 
             // Output
             volume: 0.8,
@@ -247,11 +266,16 @@ pub enum SynthControlField {
     FilterEnvDecay,
     FilterEnvSustain,
     FilterEnvRelease,
-    // LFO
+    // LFO1
     LfoWaveform,
     LfoDivision,
     LfoDepth,
     LfoDest,
+    // LFO2
+    Lfo2Waveform,
+    Lfo2Division,
+    Lfo2Depth,
+    Lfo2Dest,
     // Output
     Volume,
     SendReverb,
@@ -260,7 +284,7 @@ pub enum SynthControlField {
     Mute,
 }
 
-static ALL_FIELDS: [SynthControlField; 34] = [
+static ALL_FIELDS: [SynthControlField; 38] = [
     SynthControlField::Osc1Waveform,
     SynthControlField::Osc1Tune,
     SynthControlField::Osc1Pwm,
@@ -291,6 +315,10 @@ static ALL_FIELDS: [SynthControlField; 34] = [
     SynthControlField::LfoDivision,
     SynthControlField::LfoDepth,
     SynthControlField::LfoDest,
+    SynthControlField::Lfo2Waveform,
+    SynthControlField::Lfo2Division,
+    SynthControlField::Lfo2Depth,
+    SynthControlField::Lfo2Dest,
     SynthControlField::Volume,
     SynthControlField::SendReverb,
     SynthControlField::SendDelay,
@@ -330,6 +358,10 @@ impl SynthControlField {
             Self::LfoDivision => "DV",
             Self::LfoDepth => "DP",
             Self::LfoDest => "DS",
+            Self::Lfo2Waveform => "WV",
+            Self::Lfo2Division => "DV",
+            Self::Lfo2Depth => "DP",
+            Self::Lfo2Dest => "DS",
             Self::Volume => "VL",
             Self::SendReverb => "RV",
             Self::SendDelay => "DL",
@@ -369,6 +401,10 @@ impl SynthControlField {
             Self::LfoDivision => "Div",
             Self::LfoDepth => "Depth",
             Self::LfoDest => "Dest",
+            Self::Lfo2Waveform => "Wave",
+            Self::Lfo2Division => "Div",
+            Self::Lfo2Depth => "Depth",
+            Self::Lfo2Dest => "Dest",
             Self::Volume => "Vol",
             Self::SendReverb => "Reverb",
             Self::SendDelay => "Delay",
@@ -408,6 +444,10 @@ impl SynthControlField {
             Self::LfoDivision => p.lfo_division,
             Self::LfoDepth => p.lfo_depth,
             Self::LfoDest => p.lfo_dest as f32 / (LFO_DEST_FIELDS.len() - 1).max(1) as f32,
+            Self::Lfo2Waveform => p.lfo2_waveform as f32 / (NUM_LFO_WAVEFORMS - 1) as f32,
+            Self::Lfo2Division => p.lfo2_division,
+            Self::Lfo2Depth => p.lfo2_depth,
+            Self::Lfo2Dest => p.lfo2_dest as f32 / (LFO_DEST_FIELDS.len() - 1).max(1) as f32,
             Self::Volume => p.volume,
             Self::SendReverb => p.send_reverb,
             Self::SendDelay => p.send_delay,
@@ -448,6 +488,10 @@ impl SynthControlField {
             Self::LfoDivision => p.lfo_division = v,
             Self::LfoDepth => p.lfo_depth = v,
             Self::LfoDest => p.lfo_dest = (v * (LFO_DEST_FIELDS.len() - 1) as f32).round() as u8,
+            Self::Lfo2Waveform => p.lfo2_waveform = (v * (NUM_LFO_WAVEFORMS - 1) as f32).round() as u8,
+            Self::Lfo2Division => p.lfo2_division = v,
+            Self::Lfo2Depth => p.lfo2_depth = v,
+            Self::Lfo2Dest => p.lfo2_dest = (v * (LFO_DEST_FIELDS.len() - 1) as f32).round() as u8,
             Self::Volume => p.volume = v,
             Self::SendReverb => p.send_reverb = v,
             Self::SendDelay => p.send_delay = v,
@@ -461,7 +505,8 @@ impl SynthControlField {
 
     pub fn is_enum(&self) -> bool {
         matches!(self, Self::Osc1Waveform | Self::Osc2Waveform | Self::FilterType
-            | Self::LfoWaveform | Self::LfoDivision | Self::LfoDest)
+            | Self::LfoWaveform | Self::LfoDivision | Self::LfoDest
+            | Self::Lfo2Waveform | Self::Lfo2Division | Self::Lfo2Dest)
     }
 }
 

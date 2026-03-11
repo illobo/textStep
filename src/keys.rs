@@ -939,7 +939,7 @@ fn handle_synth_grid(app: &mut App, key: KeyEvent, synth_id: SynthId) {
 ///   Row 0: OSC1 (left) + OSC2 (right)
 ///   Row 1: ENV1 (left) + ENV2 (middle) + FILT (right)
 ///   Row 2: AMP
-const SYNTH_CTRL_ROWS: [&[SynthControlField]; 4] = [
+const SYNTH_CTRL_ROWS: [&[SynthControlField]; 3] = [
     // Row 0: OSC1 | OSC2 (side by side visually)
     &[
         SynthControlField::Osc1Waveform, SynthControlField::Osc1Tune, SynthControlField::Osc1Pwm, SynthControlField::Osc1Level,
@@ -951,10 +951,12 @@ const SYNTH_CTRL_ROWS: [&[SynthControlField]; 4] = [
         SynthControlField::Env2Attack, SynthControlField::Env2Decay, SynthControlField::Env2Sustain, SynthControlField::Env2Release,
         SynthControlField::FilterType, SynthControlField::FilterCutoff, SynthControlField::FilterResonance, SynthControlField::FilterEnvAmount, SynthControlField::FilterEnvAttack, SynthControlField::FilterEnvDecay, SynthControlField::FilterEnvSustain, SynthControlField::FilterEnvRelease,
     ],
-    // Row 2: LFO
-    &[SynthControlField::LfoWaveform, SynthControlField::LfoDivision, SynthControlField::LfoDepth, SynthControlField::LfoDest],
-    // Row 3: AMP
-    &[SynthControlField::Volume, SynthControlField::SendReverb, SynthControlField::SendDelay],
+    // Row 2: AMP | LFO1 | LFO2
+    &[
+        SynthControlField::Volume, SynthControlField::SendReverb, SynthControlField::SendDelay,
+        SynthControlField::LfoWaveform, SynthControlField::LfoDivision, SynthControlField::LfoDepth, SynthControlField::LfoDest,
+        SynthControlField::Lfo2Waveform, SynthControlField::Lfo2Division, SynthControlField::Lfo2Depth, SynthControlField::Lfo2Dest,
+    ],
 ];
 
 /// Find (row, col) of a field in the 2D layout.
@@ -1040,9 +1042,9 @@ fn adjust_synth_field(app: &mut App, synth_id: SynthId, delta: f32) {
     } else if field.is_enum() {
         let max_val: u8 = match field {
             SynthControlField::FilterType => 2,
-            SynthControlField::LfoWaveform => 2,
-            SynthControlField::LfoDivision => 9,
-            SynthControlField::LfoDest => (crate::sequencer::synth_pattern::LFO_DEST_FIELDS.len() - 1) as u8,
+            SynthControlField::LfoWaveform | SynthControlField::Lfo2Waveform => 2,
+            SynthControlField::LfoDivision | SynthControlField::Lfo2Division => 9,
+            SynthControlField::LfoDest | SynthControlField::Lfo2Dest => (crate::sequencer::synth_pattern::LFO_DEST_FIELDS.len() - 1) as u8,
             _ => 3, // Osc1/Osc2 waveforms
         };
         let cur = field.get(&pattern.params);
