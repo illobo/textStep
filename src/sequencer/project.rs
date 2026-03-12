@@ -520,6 +520,42 @@ fn pattern_from_preset(name: &str, display_name: &str, bpm: f64) -> PatternData 
     }
 }
 
+fn synth_kit_from_preset(name: &str, display_name: &str) -> SynthKitData {
+    if let Some(preset) = synth_presets::preset_by_name(name) {
+        SynthKitData {
+            name: display_name.to_string(),
+            params: preset.params,
+        }
+    } else {
+        SynthKitData {
+            name: display_name.to_string(),
+            ..Default::default()
+        }
+    }
+}
+
+fn synth_pattern_from_preset(preset_name: &str, display_name: &str) -> SynthPatternData {
+    if let Some(preset) = synth_pattern_presets::preset_by_name(preset_name) {
+        SynthPatternData {
+            name: display_name.to_string(),
+            steps: preset.steps.iter().map(|&(note, vel, len)| {
+                SynthStepData {
+                    active: vel > 0,
+                    note,
+                    velocity: vel as f32 / 127.0,
+                    gate: 1.0,
+                    length: len,
+                }
+            }).collect(),
+        }
+    } else {
+        SynthPatternData {
+            name: display_name.to_string(),
+            ..Default::default()
+        }
+    }
+}
+
 /// Create a demo project with 10 pre-filled genre patterns from classic drum programming.
 pub fn demo_project() -> ProjectFile {
     let patterns = vec![
@@ -537,34 +573,50 @@ pub fn demo_project() -> ProjectFile {
 
     let kits = genre_kits();
 
-    let mut synth_patterns = Vec::with_capacity(NUM_PATTERNS);
-    for i in 0..NUM_PATTERNS {
-        synth_patterns.push(SynthPatternData {
-            name: format!("Synth {}", i + 1),
-            ..Default::default()
-        });
-    }
-    let mut synth_kits = Vec::with_capacity(NUM_KITS);
-    for i in 0..NUM_KITS {
-        synth_kits.push(SynthKitData {
-            name: format!("Synth Kit {}", i + 1),
-            ..Default::default()
-        });
-    }
-    let mut synth_b_patterns = Vec::with_capacity(NUM_PATTERNS);
-    for i in 0..NUM_PATTERNS {
-        synth_b_patterns.push(SynthPatternData {
-            name: format!("Synth B {}", i + 1),
-            ..Default::default()
-        });
-    }
-    let mut synth_b_kits = Vec::with_capacity(NUM_KITS);
-    for i in 0..NUM_KITS {
-        synth_b_kits.push(SynthKitData {
-            name: format!("Synth B Kit {}", i + 1),
-            ..Default::default()
-        });
-    }
+    let synth_patterns = vec![
+        synth_pattern_from_preset("Acid Techno Bass 1",  "Acid Techno Bass"),
+        synth_pattern_from_preset("House Bass 1",        "House Bass"),
+        synth_pattern_from_preset("House Bass 3",        "Deep House Bass"),
+        synth_pattern_from_preset("Techno Bass 1",       "Techno Bass"),
+        synth_pattern_from_preset("Downtempo Bass 1",    "Downtempo Bass"),
+        synth_pattern_from_preset("Trance Bass 1",       "Trance Bass"),
+        synth_pattern_from_preset("Drum & Bass Bass 1",  "DnB Bass"),
+        synth_pattern_from_preset("Electro Bass 1",      "Electro Bass"),
+        synth_pattern_from_preset("Dub Techno Bass 1",   "Dub Techno Bass"),
+        synth_pattern_from_preset("Ambient Bass 1",      "Ambient Bass"),
+    ];
+    let synth_kits = vec![
+        synth_kit_from_preset("Wobble Bass",  "Wobble Bass"),    // Kit 0: Acid Techno
+        synth_kit_from_preset("Acid Bass",    "Acid Bass"),      // Kit 1: House
+        synth_kit_from_preset("Reese Bass",   "Reese Bass"),     // Kit 2: Deep House
+        synth_kit_from_preset("Pulse Bass",   "Pulse Bass"),     // Kit 3: Techno
+        synth_kit_from_preset("Sub Bass",     "Sub Bass"),       // Kit 4: Downtempo, Dub Techno
+        synth_kit_from_preset("FM Bass",      "FM Bass"),        // Kit 5: Trance, Ambient (reuse)
+        synth_kit_from_preset("Growl Bass",   "Growl Bass"),     // Kit 6: DnB
+        synth_kit_from_preset("Rubber Bass",  "Rubber Bass"),    // Kit 7: Electro
+    ];
+    let synth_b_patterns = vec![
+        synth_pattern_from_preset("Acid Techno 1",  "Acid Techno Lead"),
+        synth_pattern_from_preset("House 1",        "House Keys"),
+        synth_pattern_from_preset("House 3",        "Deep House Pad"),
+        synth_pattern_from_preset("Techno 1",       "Techno Lead"),
+        synth_pattern_from_preset("Downtempo 1",    "Downtempo Pad"),
+        synth_pattern_from_preset("Trance 1",       "Trance Lead"),
+        synth_pattern_from_preset("Drum & Bass 1",  "DnB Pluck"),
+        synth_pattern_from_preset("Electro 1",      "Electro Lead"),
+        synth_pattern_from_preset("Dub Techno 1",   "Dub Techno Pad"),
+        synth_pattern_from_preset("Ambient 1",      "Ambient Bells"),
+    ];
+    let synth_b_kits = vec![
+        synth_kit_from_preset("Screamer",       "Screamer"),       // Kit 0: Acid Techno
+        synth_kit_from_preset("Electric Piano", "Electric Piano"), // Kit 1: House
+        synth_kit_from_preset("Shimmer Pad",    "Shimmer Pad"),    // Kit 2: Deep House, Dub Techno
+        synth_kit_from_preset("Saw Lead",       "Saw Lead"),       // Kit 3: Techno
+        synth_kit_from_preset("Warm Pad",       "Warm Pad"),       // Kit 4: Downtempo
+        synth_kit_from_preset("Trance Lead",    "Trance Lead"),    // Kit 5: Trance
+        synth_kit_from_preset("Basic Pluck",    "Basic Pluck"),    // Kit 6: DnB, Ambient
+        synth_kit_from_preset("Square Lead",    "Square Lead"),    // Kit 7: Electro
+    ];
 
     ProjectFile {
         textstep: FileHeader::default(),
