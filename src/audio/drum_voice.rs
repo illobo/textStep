@@ -181,6 +181,48 @@ impl StateVariableFilter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Comb filter for shell resonance (used by SnareVoice)
+// ---------------------------------------------------------------------------
+
+/// Simple feedback comb filter for adding resonant character to noise.
+/// Models the shell resonance of an acoustic snare drum.
+struct CombFilter {
+    buf: [f32; 512],
+    pos: usize,
+    delay: usize,
+    feedback: f32,
+}
+
+impl CombFilter {
+    fn new() -> Self {
+        Self {
+            buf: [0.0; 512],
+            pos: 0,
+            delay: 100,
+            feedback: 0.0,
+        }
+    }
+
+    fn set(&mut self, freq_hz: f32, sr: f64, fb: f32) {
+        self.delay = ((sr as f32 / freq_hz) as usize).clamp(1, 511);
+        self.feedback = fb.clamp(0.0, 0.8);
+    }
+
+    #[inline]
+    fn tick(&mut self, input: f32) -> f32 {
+        let read_pos = if self.pos >= self.delay {
+            self.pos - self.delay
+        } else {
+            512 - (self.delay - self.pos)
+        };
+        let delayed = self.buf[read_pos];
+        self.buf[self.pos] = input + delayed * self.feedback;
+        self.pos = (self.pos + 1) % 512;
+        input + delayed * self.feedback
+    }
+}
+
 // ===================================================================
 // 1. KickVoice  (TR-909 inspired: sine osc + pitch env + click impulse)
 //
@@ -219,6 +261,11 @@ pub struct KickVoice {
     noise: Noise,
     drive: f32,
     active: bool,
+    // Sub-oscillator: one octave below for low-end weight
+    sub_phase: f64,
+    sub_freq: f32,
+    sub_env: f32,
+    sub_decay: f32,
 }
 
 impl KickVoice {
@@ -241,6 +288,10 @@ impl KickVoice {
             noise: Noise::new(42),
             drive: 0.0,
             active: false,
+            sub_phase: 0.0,
+            sub_freq: 0.0,
+            sub_env: 0.0,
+            sub_decay: 0.0,
         }
     }
 }
@@ -289,6 +340,13 @@ impl DrumVoiceDsp for KickVoice {
         self.click_svf.set_freq(click_filter_freq, 0.18, self.sr);
         self.click_svf.reset();
 
+        // Sub-oscillator: one octave below the body fundamental
+        self.sub_freq = self.freq_base * 0.5;
+        self.sub_phase = 0.0;
+        self.sub_env = 0.35; // subtle reinforcement, not overwhelming
+        // Decay tracks body but slightly shorter — support without boom
+        self.sub_decay = (-5.0_f64 / ((0.10 + p.decay as f64 * 0.3) * self.sr)).exp() as f32;
+
         self.drive = p.drive;
         self.active = true;
     }
@@ -332,9 +390,18 @@ impl DrumVoiceDsp for KickVoice {
         let click = self.click_svf.lp() * self.click_env * self.click_level;
         self.click_env *= self.click_decay;
 
-        // ── Sum both paths ──
+        // ── Path C: sub-oscillator (one octave below for chest-hitting low-end) ──
 
-        let raw = body + click;
+        self.sub_phase += self.sub_freq as f64 / self.sr;
+        if self.sub_phase >= 1.0 {
+            self.sub_phase -= 1.0;
+        }
+        let sub = (self.sub_phase * std::f64::consts::TAU).sin() as f32 * self.sub_env;
+        self.sub_env *= self.sub_decay;
+
+        // ── Sum all paths ──
+
+        let raw = body + click + sub;
         let driven = apply_drive(raw, self.drive);
 
         // Deactivate when both envelopes are spent
@@ -371,6 +438,7 @@ pub struct SnareVoice {
     noise: Noise,
     drive: f32,
     active: bool,
+    comb: CombFilter,
 }
 
 impl SnareVoice {
@@ -397,6 +465,7 @@ impl SnareVoice {
             noise: Noise::new(123),
             drive: 0.0,
             active: false,
+            comb: CombFilter::new(),
         }
     }
 }
@@ -449,6 +518,11 @@ impl DrumVoiceDsp for SnareVoice {
         self.lp.set_freq(lp_freq, self.sr);
         self.lp.prev_out = 0.0;
 
+        // Shell resonance: comb filter tuned to 2x snare pitch for metallic ring
+        let comb_freq = (120.0 + p.tune * 160.0) * 2.0; // ~240-560 Hz
+        let comb_fb = 0.3 + p.color * 0.3; // more color = more resonance
+        self.comb.set(comb_freq, self.sr, comb_fb);
+
         self.drive = p.drive;
         self.active = true;
     }
@@ -470,10 +544,11 @@ impl DrumVoiceDsp for SnareVoice {
         let body = sine * self.body_env;
         self.body_env *= self.body_decay;
 
-        // Noise through highpass
+        // Noise through highpass → comb filter for shell resonance
         let raw_noise = self.noise.next();
         let filtered_noise = self.hp.tick(raw_noise);
-        let noise_out = filtered_noise * self.noise_env;
+        let resonated_noise = self.comb.tick(filtered_noise);
+        let noise_out = resonated_noise * self.noise_env;
         self.noise_env *= self.noise_decay;
 
         // Impact transient: raw noise burst in first ~3ms
@@ -528,10 +603,20 @@ pub struct ClosedHiHatVoice {
     svf: StateVariableFilter,
     drive: f32,
     active: bool,
+    // Bright click transient (~2ms noise burst at high frequency)
+    transient_env: f32,
+    transient_decay: f32,
+    transient_noise: Noise,
+    // Sizzle: high-shelf boost state
+    sizzle_state: f32,
+    sizzle_coeff: f32,
 }
 
 impl ClosedHiHatVoice {
     pub fn new(sr: f64) -> Self {
+        let sizzle_freq = 10000.0;
+        let rc = 1.0 / (2.0 * std::f32::consts::PI * sizzle_freq);
+        let dt = 1.0 / sr as f32;
         Self {
             sr,
             sr_recip: (1.0 / sr) as f32,
@@ -548,6 +633,11 @@ impl ClosedHiHatVoice {
             svf: StateVariableFilter::new(),
             drive: 0.0,
             active: false,
+            transient_env: 0.0,
+            transient_decay: 0.0,
+            transient_noise: Noise::new(789),
+            sizzle_state: 0.0,
+            sizzle_coeff: dt / (rc + dt),
         }
     }
 }
@@ -584,6 +674,11 @@ impl DrumVoiceDsp for ClosedHiHatVoice {
         let lp_freq = 6000.0 + p.filter * 12000.0;
         self.svf.set_freq(lp_freq, 0.05, self.sr);
         self.svf.reset();
+
+        // Bright transient: very short noise burst for attack definition
+        self.transient_env = 0.5 + p.snap * 0.5;
+        let transient_ms = 2.0;
+        self.transient_decay = (-5.0_f64 / (transient_ms as f64 * 0.001 * self.sr)).exp() as f32;
 
         self.drive = p.drive;
         self.active = true;
@@ -640,7 +735,16 @@ impl DrumVoiceDsp for ClosedHiHatVoice {
         self.svf.tick(hp_out);
         let filtered = self.svf.lp();
         let driven = apply_drive(filtered, self.drive);
-        let out = driven * self.env;
+
+        // Add bright transient click
+        let transient = self.transient_noise.next() * self.transient_env;
+        self.transient_env *= self.transient_decay;
+
+        // Sizzle: high-shelf boost (add high-passed version of signal)
+        let sizzle_in = driven + transient;
+        self.sizzle_state += self.sizzle_coeff * (sizzle_in - self.sizzle_state);
+        let hi_content = sizzle_in - self.sizzle_state; // HP = input - LP
+        let out = (sizzle_in + hi_content * 0.4) * self.env; // boost highs by ~40%
 
         self.env *= self.env_decay;
         if self.env < 1e-6 {
@@ -708,10 +812,20 @@ pub struct OpenHiHatVoice {
     lp_sweep_coeff: f32,
     drive: f32,
     active: bool,
+    // Bright click transient (~3ms noise burst)
+    transient_env: f32,
+    transient_decay: f32,
+    transient_noise: Noise,
+    // Sizzle: high-shelf boost state
+    sizzle_state: f32,
+    sizzle_coeff: f32,
 }
 
 impl OpenHiHatVoice {
     pub fn new(sr: f64) -> Self {
+        let sizzle_freq = 10000.0;
+        let rc = 1.0 / (2.0 * std::f32::consts::PI * sizzle_freq);
+        let dt = 1.0 / sr as f32;
         Self {
             sr,
             sr_recip: (1.0 / sr) as f32,
@@ -739,6 +853,11 @@ impl OpenHiHatVoice {
             lp_sweep_coeff: 1.0,
             drive: 0.0,
             active: false,
+            transient_env: 0.0,
+            transient_decay: 0.0,
+            transient_noise: Noise::new(0xCAFE),
+            sizzle_state: 0.0,
+            sizzle_coeff: dt / (rc + dt),
         }
     }
 }
@@ -794,6 +913,11 @@ impl DrumVoiceDsp for OpenHiHatVoice {
         self.lp_sweep_coeff = (-5.0_f64 / (body_time as f64 * 0.6 * self.sr)).exp() as f32;
         self.svf.set_freq(lp_start, 0.1, self.sr);
         self.svf.reset();
+
+        // Bright transient: slightly longer than closed hat (3ms) for diffuse attack
+        self.transient_env = 0.4 + p.snap * 0.6;
+        let transient_ms = 3.0;
+        self.transient_decay = (-5.0_f64 / (transient_ms as f64 * 0.001 * self.sr)).exp() as f32;
 
         self.drive = p.drive;
         self.active = true;
@@ -863,7 +987,16 @@ impl DrumVoiceDsp for OpenHiHatVoice {
         let filtered = self.svf.lp();
 
         let driven = apply_drive(filtered, self.drive);
-        let out = driven * self.attack_env;
+
+        // Add bright transient click
+        let transient = self.transient_noise.next() * self.transient_env;
+        self.transient_env *= self.transient_decay;
+
+        // Sizzle: high-shelf boost
+        let sizzle_in = driven + transient;
+        self.sizzle_state += self.sizzle_coeff * (sizzle_in - self.sizzle_state);
+        let hi_content = sizzle_in - self.sizzle_state;
+        let out = (sizzle_in + hi_content * 0.4) * self.attack_env;
 
         // Advance envelopes
         self.env_body *= self.env_body_decay;

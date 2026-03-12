@@ -1,6 +1,65 @@
 //! Send effects: Schroeder reverb, tempo-synced delay, tube saturator, RMS glue compressor.
 //! Reverb/delay ported from zicbox applyReverb.h with adaptations for Rust.
 
+// ---------------------------------------------------------------------------
+// RampedParam: sample-accurate linear ramp for zipper-free parameter changes
+// ---------------------------------------------------------------------------
+
+/// Sample-accurate linear parameter ramp to prevent zipper noise.
+/// Use for any parameter that changes in real-time (volume, cutoff, etc.).
+#[derive(Clone, Copy, Debug)]
+pub struct RampedParam {
+    current: f32,
+    target: f32,
+    increment: f32,
+    remaining: u32,
+}
+
+impl RampedParam {
+    pub fn new(initial: f32) -> Self {
+        Self {
+            current: initial,
+            target: initial,
+            increment: 0.0,
+            remaining: 0,
+        }
+    }
+
+    /// Set a new target value with a ramp duration in samples.
+    /// For 10ms at 48kHz, use ramp_samples = 480.
+    pub fn set(&mut self, target: f32, ramp_samples: u32) {
+        self.target = target;
+        if ramp_samples <= 1 {
+            self.current = target;
+            self.remaining = 0;
+            self.increment = 0.0;
+        } else {
+            self.increment = (target - self.current) / ramp_samples as f32;
+            self.remaining = ramp_samples;
+        }
+    }
+
+    /// Get the next sample value, advancing the ramp by one step.
+    #[inline]
+    pub fn next(&mut self) -> f32 {
+        if self.remaining > 0 {
+            self.remaining -= 1;
+            if self.remaining == 0 {
+                self.current = self.target;
+            } else {
+                self.current += self.increment;
+            }
+        }
+        self.current
+    }
+
+    /// Get the current value without advancing.
+    #[inline]
+    pub fn value(&self) -> f32 {
+        self.current
+    }
+}
+
 // Base comb/allpass lengths tuned for 44100 Hz; scaled by sample_rate / 44100.0
 const BASE_COMB_LENGTHS: [usize; 4] = [1117, 1301, 1571, 1787];
 const BASE_ALLPASS_LENGTHS: [usize; 2] = [557, 443];
@@ -19,6 +78,13 @@ pub struct ReverbEffect {
     feedback: f32,
     damping: f32,
     wet: f32,
+    // Early reflections: 5 fixed taps for spatial definition before diffuse tail
+    er_buf: Vec<f32>,
+    er_buf_size: usize,
+    er_pos: usize,
+    er_taps: [usize; 5],
+    er_gains: [f32; 5],
+    er_wet: f32,
 }
 
 impl ReverbEffect {
@@ -50,6 +116,18 @@ impl ReverbEffect {
         }
         let allpass_total = offset;
 
+        // Early reflections: 5 taps at 3ms, 7ms, 11ms, 17ms, 23ms
+        let er_delays_ms: [f64; 5] = [3.0, 7.0, 11.0, 17.0, 23.0];
+        let er_buf_size = (sample_rate * 0.03) as usize + 1; // max 30ms
+        let er_taps: [usize; 5] = [
+            (er_delays_ms[0] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[1] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[2] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[3] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[4] * 0.001 * sample_rate) as usize,
+        ];
+        let er_gains: [f32; 5] = [0.35, 0.25, 0.20, 0.15, 0.10];
+
         Self {
             comb_buf: vec![0.0; comb_total],
             comb_lengths,
@@ -63,19 +141,39 @@ impl ReverbEffect {
             feedback: 0.7,
             damping: 0.25,
             wet: 0.3,
+            er_buf: vec![0.0; er_buf_size],
+            er_buf_size,
+            er_pos: 0,
+            er_taps,
+            er_gains,
+            er_wet: 0.3,
         }
     }
 
     /// Update reverb parameters. amount: 0-1, damping: 0-1.
     pub fn set_params(&mut self, amount: f32, damping: f32) {
-        // Feedback: 0.50 at amount=0, up to 0.92 at amount=1
-        self.feedback = (0.50 + amount * 0.42).min(0.92);
+        // Reduced feedback ceiling (0.85 max) for cleaner decay
+        self.feedback = (0.50 + amount * 0.35).min(0.85);
         self.damping = damping;
         self.wet = amount * 0.7;
+        self.er_wet = amount * 0.4; // early reflections slightly louder than diffuse tail
     }
 
     /// Process one sample of reverb input, return wet output.
     pub fn tick(&mut self, input: f32) -> f32 {
+        // Early reflections: read tapped delays for spatial definition
+        let mut er_sum = 0.0_f32;
+        for i in 0..5 {
+            let tap_pos = if self.er_pos >= self.er_taps[i] {
+                self.er_pos - self.er_taps[i]
+            } else {
+                self.er_buf_size - (self.er_taps[i] - self.er_pos)
+            };
+            er_sum += self.er_buf[tap_pos] * self.er_gains[i];
+        }
+        self.er_buf[self.er_pos] = input;
+        self.er_pos = (self.er_pos + 1) % self.er_buf_size;
+
         let mut comb_sum = 0.0_f32;
 
         for i in 0..4 {
@@ -111,7 +209,7 @@ impl ReverbEffect {
             self.allpass_pos[i] = (pos + 1) % len;
         }
 
-        out * self.wet
+        out * self.wet + er_sum * self.er_wet
     }
 }
 
@@ -270,6 +368,10 @@ pub struct GlueCompressor {
     // RMS level detection (exponential moving average of input²)
     rms_sq: f32,
     rms_coeff: f32,
+    // Peak detection (fast attack for transients)
+    peak_level: f32,
+    peak_attack_coeff: f32,
+    peak_release_coeff: f32,
     // Gain smoothing (separate attack/release)
     gain_smooth: f32, // current smoothed gain (linear, not dB)
     attack_coeff: f32,
@@ -288,6 +390,9 @@ impl GlueCompressor {
         let mut comp = Self {
             rms_sq: 0.0,
             rms_coeff: 0.0,
+            peak_level: 0.0,
+            peak_attack_coeff: 0.0,
+            peak_release_coeff: 0.0,
             gain_smooth: 1.0,
             attack_coeff: 0.0,
             release_coeff: 0.0,
@@ -334,6 +439,13 @@ impl GlueCompressor {
         let rms_ms = 10.0;
         self.rms_coeff = (-1.0 / (rms_ms * 0.001 * sample_rate)).exp() as f32;
 
+        // Peak detector: very fast attack (0.1ms), moderate release (5ms)
+        // Catches transients that RMS misses
+        let peak_attack_ms = 0.1;
+        self.peak_attack_coeff = (-1.0 / (peak_attack_ms * 0.001 * sample_rate)).exp() as f32;
+        let peak_release_ms = 5.0;
+        self.peak_release_coeff = (-1.0 / (peak_release_ms * 0.001 * sample_rate)).exp() as f32;
+
         // Auto makeup gain: approximate the average gain reduction
         // At threshold with the given ratio, max GR ≈ threshold * (1 - 1/ratio)
         // We compensate for roughly half of that (sounds natural)
@@ -354,8 +466,23 @@ impl GlueCompressor {
         // Convert RMS to dB (with floor to avoid log(0))
         let rms_db = linear_to_db(self.rms_sq.sqrt().max(1e-10));
 
+        // Peak detection (envelope follower)
+        let abs_input = input.abs();
+        if abs_input > self.peak_level {
+            self.peak_level = self.peak_attack_coeff * self.peak_level
+                + (1.0 - self.peak_attack_coeff) * abs_input;
+        } else {
+            self.peak_level = self.peak_release_coeff * self.peak_level
+                + (1.0 - self.peak_release_coeff) * abs_input;
+        }
+        let peak_db = linear_to_db(self.peak_level.max(1e-10));
+
+        // Use the louder of RMS and peak for detection
+        // Preserves transient response while still compressing sustained signals
+        let detect_db = rms_db.max(peak_db);
+
         // Gain computation with soft knee
-        let gain_db = compute_gain_db(rms_db, self.threshold_db, self.ratio, self.knee_db);
+        let gain_db = compute_gain_db(detect_db, self.threshold_db, self.ratio, self.knee_db);
 
         // Convert to linear gain
         let target_gain = db_to_linear(gain_db);
@@ -504,4 +631,102 @@ fn db_to_linear(db: f32) -> f32 {
 #[inline]
 fn linear_to_db(linear: f32) -> f32 {
     20.0 * linear.log10()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ramped_param_instant_set() {
+        let mut p = RampedParam::new(0.0);
+        p.set(1.0, 1);
+        assert!((p.next() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_ramped_param_smooth_ramp() {
+        let mut p = RampedParam::new(0.0);
+        p.set(1.0, 4);
+        let v1 = p.next();
+        let v2 = p.next();
+        let v3 = p.next();
+        let v4 = p.next();
+        assert!(v1 > 0.0 && v1 < 0.5);
+        assert!(v2 > v1);
+        assert!(v3 > v2);
+        assert!((v4 - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_ramped_param_stays_at_target() {
+        let mut p = RampedParam::new(0.5);
+        assert!((p.next() - 0.5).abs() < 1e-6);
+        assert!((p.next() - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_compressor_tames_peaks() {
+        let sr = 48000.0;
+        let mut comp = GlueCompressor::new(sr);
+        comp.set_amount(0.7, sr);
+        let loud = 0.9_f32;
+        let mut out = 0.0;
+        // Need enough samples for RMS + peak detector to respond
+        for _ in 0..2000 {
+            out = comp.tick(loud);
+        }
+        assert!(out < loud, "Compressed output {} should be less than input {}", out, loud);
+        assert!(out > 0.0);
+    }
+
+    #[test]
+    fn test_reverb_early_reflections() {
+        let mut reverb = ReverbEffect::new(48000.0);
+        reverb.set_params(0.5, 0.3);
+        let _first = reverb.tick(1.0);
+        let mut found_reflection = false;
+        for _i in 0..960 {
+            let out = reverb.tick(0.0);
+            if out.abs() > 0.01 {
+                found_reflection = true;
+                break;
+            }
+        }
+        assert!(found_reflection, "Should hear early reflections within 20ms");
+    }
+
+    #[test]
+    fn test_reverb_decays() {
+        let mut reverb = ReverbEffect::new(48000.0);
+        reverb.set_params(1.0, 0.5);
+        reverb.tick(1.0);
+        let mut last = 1.0_f32;
+        for _ in 0..48000 {
+            last = reverb.tick(0.0);
+        }
+        assert!(last.abs() < 0.1, "Reverb should decay after 1s, got {}", last);
+    }
+
+    #[test]
+    fn test_compressor_bypass() {
+        let sr = 48000.0;
+        let mut comp = GlueCompressor::new(sr);
+        comp.set_amount(0.0, sr);
+        let input = 0.5;
+        let out = comp.tick(input);
+        assert!((out - input).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_ramped_param_retarget_mid_ramp() {
+        let mut p = RampedParam::new(0.0);
+        p.set(1.0, 100);
+        let _ = p.next();
+        p.set(0.0, 100);
+        let v1 = p.next();
+        let v2 = p.next();
+        assert!(v2 < v1);
+    }
+
 }

@@ -63,22 +63,22 @@ impl DrumTrackParams {
         match track {
             DrumTrackId::Kick => Self {
                 tune: 0.3, sweep: 0.6, color: 0.2, snap: 0.5,
-                filter: 0.7, drive: 0.2, decay: 0.5, volume: 0.8,
+                filter: 0.7, drive: 0.15, decay: 0.45, volume: 0.75,
                 send_reverb: 0.05, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
             },
             DrumTrackId::Snare => Self {
-                tune: 0.4, sweep: 0.1, color: 0.6, snap: 0.4,
-                filter: 0.5, drive: 0.1, decay: 0.4, volume: 0.8,
+                tune: 0.4, sweep: 0.1, color: 0.5, snap: 0.4,
+                filter: 0.5, drive: 0.1, decay: 0.4, volume: 0.75,
                 send_reverb: 0.15, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
             },
             DrumTrackId::ClosedHiHat => Self {
-                tune: 0.6, sweep: 0.0, color: 0.5, snap: 0.3,
-                filter: 0.6, drive: 0.0, decay: 0.1, volume: 0.7,
+                tune: 0.6, sweep: 0.0, color: 0.5, snap: 0.25,
+                filter: 0.6, drive: 0.0, decay: 0.1, volume: 0.65,
                 send_reverb: 0.05, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
             },
             DrumTrackId::OpenHiHat => Self {
-                tune: 0.5, sweep: 0.6, color: 0.3, snap: 0.3,
-                filter: 0.5, drive: 0.0, decay: 0.5, volume: 0.7,
+                tune: 0.5, sweep: 0.6, color: 0.3, snap: 0.25,
+                filter: 0.5, drive: 0.0, decay: 0.5, volume: 0.65,
                 send_reverb: 0.1, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
             },
             DrumTrackId::Ride => Self {

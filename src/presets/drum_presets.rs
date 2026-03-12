@@ -12,74 +12,76 @@ const fn ds(tune: f32, sweep: f32, color: f32, snap: f32, filter: f32, drive: f3
 // ── Kick Presets ─────────────────────────────────────────────────────────────
 
 pub static KICK_PRESETS: &[DrumSoundPreset] = &[
-    // 808
-    DrumSoundPreset { name: "Deep 808",      category: "808",        voice: DrumTrackId::Kick, params: ds(0.20, 0.70, 0.15, 0.10, 0.50, 0.10, 0.80, 0.85) },
-    DrumSoundPreset { name: "Punchy 808",    category: "808",        voice: DrumTrackId::Kick, params: ds(0.30, 0.60, 0.20, 0.50, 0.70, 0.20, 0.50, 0.80) },
-    DrumSoundPreset { name: "Sub 808",       category: "808",        voice: DrumTrackId::Kick, params: ds(0.15, 0.80, 0.10, 0.05, 0.30, 0.05, 0.90, 0.90) },
-    DrumSoundPreset { name: "Short 808",     category: "808",        voice: DrumTrackId::Kick, params: ds(0.25, 0.50, 0.20, 0.40, 0.60, 0.15, 0.30, 0.80) },
-    // 909
-    DrumSoundPreset { name: "Hard 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.35, 0.50, 0.30, 0.60, 0.80, 0.30, 0.45, 0.85) },
-    DrumSoundPreset { name: "Soft 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.30, 0.40, 0.25, 0.30, 0.60, 0.10, 0.50, 0.75) },
-    DrumSoundPreset { name: "Boom 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.25, 0.65, 0.20, 0.45, 0.55, 0.20, 0.65, 0.80) },
-    // Acoustic
-    DrumSoundPreset { name: "Tight Acoustic", category: "Acoustic",  voice: DrumTrackId::Kick, params: ds(0.40, 0.30, 0.35, 0.70, 0.90, 0.15, 0.35, 0.80) },
-    DrumSoundPreset { name: "Jazz Kick",     category: "Acoustic",   voice: DrumTrackId::Kick, params: ds(0.45, 0.20, 0.40, 0.50, 0.70, 0.05, 0.40, 0.70) },
+    // 808 — sub-osc adds low-end, so reduce volume/decay vs original
+    DrumSoundPreset { name: "Deep 808",      category: "808",        voice: DrumTrackId::Kick, params: ds(0.20, 0.65, 0.15, 0.10, 0.55, 0.10, 0.70, 0.78) },
+    DrumSoundPreset { name: "Punchy 808",    category: "808",        voice: DrumTrackId::Kick, params: ds(0.30, 0.55, 0.20, 0.50, 0.70, 0.15, 0.45, 0.75) },
+    DrumSoundPreset { name: "Sub 808",       category: "808",        voice: DrumTrackId::Kick, params: ds(0.15, 0.70, 0.10, 0.05, 0.35, 0.05, 0.80, 0.80) },
+    DrumSoundPreset { name: "Short 808",     category: "808",        voice: DrumTrackId::Kick, params: ds(0.25, 0.50, 0.20, 0.40, 0.60, 0.15, 0.28, 0.75) },
+    // 909 — per-track saturation adds punch, ease drive
+    DrumSoundPreset { name: "Hard 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.35, 0.45, 0.30, 0.60, 0.80, 0.25, 0.40, 0.80) },
+    DrumSoundPreset { name: "Soft 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.30, 0.40, 0.25, 0.30, 0.60, 0.08, 0.45, 0.72) },
+    DrumSoundPreset { name: "Boom 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.25, 0.60, 0.20, 0.45, 0.55, 0.15, 0.55, 0.75) },
+    // Acoustic — tighter decay, sub adds natural weight
+    DrumSoundPreset { name: "Tight Acoustic", category: "Acoustic",  voice: DrumTrackId::Kick, params: ds(0.40, 0.30, 0.35, 0.70, 0.90, 0.12, 0.30, 0.75) },
+    DrumSoundPreset { name: "Jazz Kick",     category: "Acoustic",   voice: DrumTrackId::Kick, params: ds(0.45, 0.20, 0.40, 0.50, 0.70, 0.05, 0.35, 0.68) },
     // Lo-Fi
-    DrumSoundPreset { name: "Dusty Kick",    category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.30, 0.55, 0.45, 0.35, 0.45, 0.40, 0.55, 0.75) },
-    DrumSoundPreset { name: "Tape Kick",     category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.25, 0.60, 0.50, 0.20, 0.40, 0.50, 0.60, 0.70) },
-    // Industrial
-    DrumSoundPreset { name: "Distorted Kick", category: "Industrial", voice: DrumTrackId::Kick, params: ds(0.30, 0.70, 0.60, 0.80, 0.90, 0.80, 0.40, 0.85) },
-    DrumSoundPreset { name: "Metal Kick",    category: "Industrial",  voice: DrumTrackId::Kick, params: ds(0.40, 0.80, 0.70, 0.90, 1.00, 0.70, 0.35, 0.80) },
-    // Minimal
-    DrumSoundPreset { name: "Click Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.35, 0.30, 0.10, 0.80, 0.70, 0.05, 0.20, 0.75) },
-    DrumSoundPreset { name: "Micro Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.40, 0.20, 0.15, 0.60, 0.50, 0.00, 0.15, 0.70) },
+    DrumSoundPreset { name: "Dusty Kick",    category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.30, 0.50, 0.45, 0.35, 0.45, 0.35, 0.50, 0.70) },
+    DrumSoundPreset { name: "Tape Kick",     category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.25, 0.55, 0.50, 0.20, 0.40, 0.45, 0.50, 0.68) },
+    // Industrial — saturation stacks with per-track, ease drive
+    DrumSoundPreset { name: "Distorted Kick", category: "Industrial", voice: DrumTrackId::Kick, params: ds(0.30, 0.65, 0.60, 0.80, 0.90, 0.70, 0.35, 0.80) },
+    DrumSoundPreset { name: "Metal Kick",    category: "Industrial",  voice: DrumTrackId::Kick, params: ds(0.40, 0.75, 0.70, 0.90, 1.00, 0.60, 0.30, 0.75) },
+    // Minimal — short decay tames sub tail
+    DrumSoundPreset { name: "Click Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.35, 0.30, 0.10, 0.80, 0.70, 0.05, 0.18, 0.72) },
+    DrumSoundPreset { name: "Micro Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.40, 0.20, 0.15, 0.60, 0.50, 0.00, 0.12, 0.68) },
 ];
 
 // ── Snare Presets ────────────────────────────────────────────────────────────
 
 pub static SNARE_PRESETS: &[DrumSoundPreset] = &[
-    // 808
-    DrumSoundPreset { name: "Classic 808",   category: "808",        voice: DrumTrackId::Snare, params: ds(0.35, 0.15, 0.50, 0.40, 0.50, 0.10, 0.40, 0.80) },
-    DrumSoundPreset { name: "Rimshot 808",   category: "808",        voice: DrumTrackId::Snare, params: ds(0.50, 0.05, 0.30, 0.70, 0.70, 0.15, 0.25, 0.80) },
-    DrumSoundPreset { name: "Noisy 808",     category: "808",        voice: DrumTrackId::Snare, params: ds(0.30, 0.20, 0.70, 0.30, 0.40, 0.20, 0.50, 0.75) },
+    // 808 — comb filter adds body, reduce color to tame resonance
+    DrumSoundPreset { name: "Classic 808",   category: "808",        voice: DrumTrackId::Snare, params: ds(0.35, 0.15, 0.40, 0.40, 0.50, 0.10, 0.40, 0.78) },
+    DrumSoundPreset { name: "Rimshot 808",   category: "808",        voice: DrumTrackId::Snare, params: ds(0.50, 0.05, 0.25, 0.70, 0.70, 0.15, 0.25, 0.78) },
+    DrumSoundPreset { name: "Noisy 808",     category: "808",        voice: DrumTrackId::Snare, params: ds(0.30, 0.20, 0.55, 0.30, 0.40, 0.20, 0.50, 0.72) },
     // 909
-    DrumSoundPreset { name: "Crack 909",     category: "909",        voice: DrumTrackId::Snare, params: ds(0.45, 0.10, 0.60, 0.60, 0.65, 0.20, 0.35, 0.85) },
-    DrumSoundPreset { name: "Fat 909",       category: "909",        voice: DrumTrackId::Snare, params: ds(0.40, 0.15, 0.55, 0.45, 0.55, 0.25, 0.45, 0.80) },
-    // Acoustic
-    DrumSoundPreset { name: "Tight Snare",   category: "Acoustic",   voice: DrumTrackId::Snare, params: ds(0.50, 0.05, 0.45, 0.65, 0.75, 0.10, 0.30, 0.80) },
-    DrumSoundPreset { name: "Brush Snare",   category: "Acoustic",   voice: DrumTrackId::Snare, params: ds(0.45, 0.00, 0.70, 0.20, 0.50, 0.00, 0.35, 0.65) },
+    DrumSoundPreset { name: "Crack 909",     category: "909",        voice: DrumTrackId::Snare, params: ds(0.45, 0.10, 0.50, 0.60, 0.65, 0.18, 0.35, 0.80) },
+    DrumSoundPreset { name: "Fat 909",       category: "909",        voice: DrumTrackId::Snare, params: ds(0.40, 0.15, 0.45, 0.45, 0.55, 0.20, 0.45, 0.78) },
+    // Acoustic — comb gives natural shell resonance
+    DrumSoundPreset { name: "Tight Snare",   category: "Acoustic",   voice: DrumTrackId::Snare, params: ds(0.50, 0.05, 0.38, 0.65, 0.75, 0.10, 0.30, 0.78) },
+    DrumSoundPreset { name: "Brush Snare",   category: "Acoustic",   voice: DrumTrackId::Snare, params: ds(0.45, 0.00, 0.55, 0.20, 0.50, 0.00, 0.35, 0.62) },
     // Lo-Fi
-    DrumSoundPreset { name: "Crunchy Snare", category: "Lo-Fi",      voice: DrumTrackId::Snare, params: ds(0.40, 0.10, 0.65, 0.50, 0.45, 0.50, 0.40, 0.75) },
-    DrumSoundPreset { name: "Vinyl Snare",   category: "Lo-Fi",      voice: DrumTrackId::Snare, params: ds(0.35, 0.15, 0.60, 0.35, 0.40, 0.35, 0.45, 0.70) },
-    // Industrial
-    DrumSoundPreset { name: "Noise Blast",   category: "Industrial", voice: DrumTrackId::Snare, params: ds(0.30, 0.20, 0.90, 0.80, 0.80, 0.70, 0.30, 0.85) },
-    // Minimal
-    DrumSoundPreset { name: "Click Snare",   category: "Minimal",    voice: DrumTrackId::Snare, params: ds(0.55, 0.00, 0.30, 0.80, 0.80, 0.05, 0.15, 0.75) },
-    DrumSoundPreset { name: "Ghost Snare",   category: "Minimal",    voice: DrumTrackId::Snare, params: ds(0.40, 0.05, 0.50, 0.15, 0.45, 0.00, 0.20, 0.50) },
+    DrumSoundPreset { name: "Crunchy Snare", category: "Lo-Fi",      voice: DrumTrackId::Snare, params: ds(0.40, 0.10, 0.52, 0.50, 0.45, 0.45, 0.40, 0.72) },
+    DrumSoundPreset { name: "Vinyl Snare",   category: "Lo-Fi",      voice: DrumTrackId::Snare, params: ds(0.35, 0.15, 0.48, 0.35, 0.40, 0.30, 0.45, 0.68) },
+    // Industrial — keep high color for aggressive resonance
+    DrumSoundPreset { name: "Noise Blast",   category: "Industrial", voice: DrumTrackId::Snare, params: ds(0.30, 0.20, 0.75, 0.80, 0.80, 0.65, 0.30, 0.80) },
+    // Minimal — low color = minimal comb effect
+    DrumSoundPreset { name: "Click Snare",   category: "Minimal",    voice: DrumTrackId::Snare, params: ds(0.55, 0.00, 0.25, 0.80, 0.80, 0.05, 0.15, 0.72) },
+    DrumSoundPreset { name: "Ghost Snare",   category: "Minimal",    voice: DrumTrackId::Snare, params: ds(0.40, 0.05, 0.40, 0.15, 0.45, 0.00, 0.20, 0.48) },
 ];
 
 // ── Closed Hi-Hat Presets ────────────────────────────────────────────────────
 
 pub static CHH_PRESETS: &[DrumSoundPreset] = &[
-    DrumSoundPreset { name: "Tight 808",     category: "808",        voice: DrumTrackId::ClosedHiHat, params: ds(0.60, 0.00, 0.50, 0.40, 0.65, 0.00, 0.08, 0.70) },
-    DrumSoundPreset { name: "Sizzle 909",    category: "909",        voice: DrumTrackId::ClosedHiHat, params: ds(0.55, 0.00, 0.55, 0.35, 0.70, 0.10, 0.12, 0.70) },
-    DrumSoundPreset { name: "Crisp Hat",     category: "Acoustic",   voice: DrumTrackId::ClosedHiHat, params: ds(0.70, 0.00, 0.40, 0.50, 0.80, 0.05, 0.06, 0.65) },
-    DrumSoundPreset { name: "Dark Hat",      category: "Lo-Fi",      voice: DrumTrackId::ClosedHiHat, params: ds(0.45, 0.00, 0.60, 0.25, 0.40, 0.30, 0.10, 0.65) },
-    DrumSoundPreset { name: "Gritty Hat",    category: "Industrial", voice: DrumTrackId::ClosedHiHat, params: ds(0.50, 0.10, 0.70, 0.60, 0.55, 0.50, 0.08, 0.70) },
-    DrumSoundPreset { name: "Thin Hat",      category: "Minimal",    voice: DrumTrackId::ClosedHiHat, params: ds(0.75, 0.00, 0.30, 0.20, 0.90, 0.00, 0.05, 0.55) },
-    DrumSoundPreset { name: "Shaker",        category: "Acoustic",   voice: DrumTrackId::ClosedHiHat, params: ds(0.65, 0.00, 0.80, 0.15, 0.70, 0.00, 0.04, 0.60) },
-    DrumSoundPreset { name: "Noisy Click",   category: "Lo-Fi",      voice: DrumTrackId::ClosedHiHat, params: ds(0.50, 0.05, 0.75, 0.50, 0.35, 0.40, 0.06, 0.65) },
+    // Transient burst + sizzle add attack and brightness — reduce snap/volume accordingly
+    DrumSoundPreset { name: "Tight 808",     category: "808",        voice: DrumTrackId::ClosedHiHat, params: ds(0.60, 0.00, 0.50, 0.30, 0.65, 0.00, 0.08, 0.65) },
+    DrumSoundPreset { name: "Sizzle 909",    category: "909",        voice: DrumTrackId::ClosedHiHat, params: ds(0.55, 0.00, 0.55, 0.28, 0.70, 0.10, 0.12, 0.65) },
+    DrumSoundPreset { name: "Crisp Hat",     category: "Acoustic",   voice: DrumTrackId::ClosedHiHat, params: ds(0.70, 0.00, 0.40, 0.40, 0.80, 0.05, 0.06, 0.60) },
+    DrumSoundPreset { name: "Dark Hat",      category: "Lo-Fi",      voice: DrumTrackId::ClosedHiHat, params: ds(0.45, 0.00, 0.60, 0.20, 0.40, 0.30, 0.10, 0.62) },
+    DrumSoundPreset { name: "Gritty Hat",    category: "Industrial", voice: DrumTrackId::ClosedHiHat, params: ds(0.50, 0.10, 0.70, 0.45, 0.55, 0.45, 0.08, 0.65) },
+    DrumSoundPreset { name: "Thin Hat",      category: "Minimal",    voice: DrumTrackId::ClosedHiHat, params: ds(0.75, 0.00, 0.30, 0.15, 0.90, 0.00, 0.05, 0.52) },
+    DrumSoundPreset { name: "Shaker",        category: "Acoustic",   voice: DrumTrackId::ClosedHiHat, params: ds(0.65, 0.00, 0.80, 0.10, 0.70, 0.00, 0.04, 0.55) },
+    DrumSoundPreset { name: "Noisy Click",   category: "Lo-Fi",      voice: DrumTrackId::ClosedHiHat, params: ds(0.50, 0.05, 0.75, 0.40, 0.35, 0.35, 0.06, 0.60) },
 ];
 
 // ── Open Hi-Hat Presets ──────────────────────────────────────────────────────
 
 pub static OHH_PRESETS: &[DrumSoundPreset] = &[
-    DrumSoundPreset { name: "Classic 808",   category: "808",        voice: DrumTrackId::OpenHiHat, params: ds(0.50, 0.60, 0.30, 0.30, 0.50, 0.00, 0.50, 0.70) },
-    DrumSoundPreset { name: "Sizzle 909",    category: "909",        voice: DrumTrackId::OpenHiHat, params: ds(0.55, 0.50, 0.40, 0.35, 0.60, 0.10, 0.55, 0.70) },
-    DrumSoundPreset { name: "Washy",         category: "Acoustic",   voice: DrumTrackId::OpenHiHat, params: ds(0.45, 0.70, 0.35, 0.20, 0.45, 0.00, 0.70, 0.65) },
-    DrumSoundPreset { name: "Trash Open",    category: "Industrial", voice: DrumTrackId::OpenHiHat, params: ds(0.40, 0.80, 0.60, 0.50, 0.70, 0.50, 0.45, 0.70) },
-    DrumSoundPreset { name: "Short Open",    category: "Minimal",    voice: DrumTrackId::OpenHiHat, params: ds(0.55, 0.40, 0.30, 0.25, 0.55, 0.00, 0.30, 0.60) },
-    DrumSoundPreset { name: "Lo-Fi Open",    category: "Lo-Fi",      voice: DrumTrackId::OpenHiHat, params: ds(0.45, 0.55, 0.50, 0.20, 0.35, 0.35, 0.55, 0.65) },
+    // Transient burst + sizzle add brightness — reduce snap/volume accordingly
+    DrumSoundPreset { name: "Classic 808",   category: "808",        voice: DrumTrackId::OpenHiHat, params: ds(0.50, 0.60, 0.30, 0.25, 0.50, 0.00, 0.50, 0.65) },
+    DrumSoundPreset { name: "Sizzle 909",    category: "909",        voice: DrumTrackId::OpenHiHat, params: ds(0.55, 0.50, 0.40, 0.28, 0.60, 0.10, 0.55, 0.65) },
+    DrumSoundPreset { name: "Washy",         category: "Acoustic",   voice: DrumTrackId::OpenHiHat, params: ds(0.45, 0.70, 0.35, 0.15, 0.45, 0.00, 0.70, 0.60) },
+    DrumSoundPreset { name: "Trash Open",    category: "Industrial", voice: DrumTrackId::OpenHiHat, params: ds(0.40, 0.80, 0.60, 0.40, 0.70, 0.45, 0.45, 0.65) },
+    DrumSoundPreset { name: "Short Open",    category: "Minimal",    voice: DrumTrackId::OpenHiHat, params: ds(0.55, 0.40, 0.30, 0.20, 0.55, 0.00, 0.30, 0.55) },
+    DrumSoundPreset { name: "Lo-Fi Open",    category: "Lo-Fi",      voice: DrumTrackId::OpenHiHat, params: ds(0.45, 0.55, 0.50, 0.15, 0.35, 0.30, 0.55, 0.60) },
 ];
 
 // ── Ride Presets ─────────────────────────────────────────────────────────────

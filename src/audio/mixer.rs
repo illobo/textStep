@@ -20,6 +20,20 @@ pub fn soft_clip(x: f32) -> f32 {
     x.tanh()
 }
 
+/// Gentle per-track saturation using cubic soft-clip.
+/// Adds subtle odd harmonics and tames peaks without killing transients.
+/// More transparent than tanh — preserves the first ~0.8 of dynamic range linearly.
+#[inline]
+pub fn per_track_saturate(x: f32) -> f32 {
+    if x > 1.0 {
+        2.0 / 3.0 + (x - 1.0) / (1.0 + (x - 1.0) * (x - 1.0))
+    } else if x < -1.0 {
+        -2.0 / 3.0 + (x + 1.0) / (1.0 + (x + 1.0) * (x + 1.0))
+    } else {
+        x - (x * x * x) / 3.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,5 +99,25 @@ mod tests {
     fn test_soft_clip_symmetry() {
         let v = 0.7;
         assert!((soft_clip(v) + soft_clip(-v)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_per_track_saturate_clean() {
+        let x = 0.1_f32;
+        let y = per_track_saturate(x);
+        assert!((y - x).abs() < 0.02);
+    }
+
+    #[test]
+    fn test_per_track_saturate_limits() {
+        let y = per_track_saturate(2.0);
+        assert!(y > 0.8);
+        assert!(y < 2.0);
+    }
+
+    #[test]
+    fn test_per_track_saturate_symmetry() {
+        let v = 0.8;
+        assert!((per_track_saturate(v) + per_track_saturate(-v)).abs() < 1e-6);
     }
 }
