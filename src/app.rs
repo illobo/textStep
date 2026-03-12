@@ -733,6 +733,13 @@ impl App {
                         }
                     }
 
+                    // Check for queued synth B pattern switch at loop wrap
+                    if synth_b_step == 0 && global_step > 0 {
+                        if let Some(next) = self.ui.synth_b.queued_pattern.take() {
+                            self.switch_synth_pattern_for(SynthId::B, next);
+                        }
+                    }
+
                     // Flash triggered tracks
                     for track in 0..NUM_DRUM_TRACKS {
                         if triggered & (1 << track) != 0 {
@@ -970,9 +977,11 @@ impl App {
                 self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
-                // For synth B, use synth_b_pattern (project B storage is a future task)
+                self.project.save_synth_b_pattern(self.ui.synth_b.active_pattern, &self.synth_b_pattern);
                 self.ui.synth_b.active_pattern = index;
+                self.project.active_synth_b_pattern = index;
                 self.synth_b_pattern = SynthPattern::default();
+                self.project.load_synth_b_pattern(index, &mut self.synth_b_pattern);
                 self.send_synth_pattern(SynthId::B);
             }
         }
@@ -1004,8 +1013,10 @@ impl App {
                 self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
-                // For synth B, just update UI state (project B storage is a future task)
+                self.project.save_synth_b_kit(self.ui.synth_b.active_kit, &self.synth_b_pattern.params);
                 self.ui.synth_b.active_kit = index;
+                self.project.active_synth_b_kit = index;
+                self.project.load_synth_b_kit(index, &mut self.synth_b_pattern);
                 self.send_synth_pattern(SynthId::B);
             }
         }

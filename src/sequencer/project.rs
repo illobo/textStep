@@ -630,7 +630,7 @@ pub fn demo_project() -> ProjectFile {
         patterns,
         active_pattern: 0,
         bpm: 138.0,
-        loop_length: 16,
+        loop_length: 32,
         swing: 0.50,
         effects: EffectParams::default(),
         synth_kits,
