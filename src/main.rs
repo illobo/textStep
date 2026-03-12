@@ -10,6 +10,7 @@ mod presets;
 mod sequencer;
 mod ui;
 
+use std::env;
 use std::io;
 use std::sync::Arc;
 use std::time::Duration;
@@ -24,6 +25,13 @@ use ratatui::Terminal;
 /// terminal, and enters the main UI loop. The audio stream is kept alive
 /// until this function returns.
 fn main() -> io::Result<()> {
+    // Handle --version / -V flag
+    let args: Vec<String> = env::args().collect();
+    if args.iter().any(|a| a == "--version" || a == "-V") {
+        println!("textstep {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     // Create channels for UI <-> Audio communication
     let (tx_to_audio, rx_from_ui) = crossbeam_channel::bounded(64);
     let (tx_to_ui, rx_from_audio) = crossbeam_channel::bounded(16);
