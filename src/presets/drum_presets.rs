@@ -156,3 +156,11 @@ pub fn categories_for_voice(voice: DrumTrackId) -> Vec<&'static str> {
     }
     cats
 }
+
+pub fn preset_by_name_for_voice(voice: DrumTrackId, name: &str) -> Option<&'static DrumSoundPreset> {
+    presets_for_voice(voice).iter().find(|p| p.name == name)
+}
+
+pub fn first_preset_for_category(voice: DrumTrackId, category: &str) -> Option<&'static DrumSoundPreset> {
+    presets_for_voice(voice).iter().find(|p| p.category == category)
+}

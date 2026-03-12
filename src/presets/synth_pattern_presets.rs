@@ -675,3 +675,7 @@ pub fn genres() -> Vec<&'static str> {
 pub fn presets_for_genre(genre: &str) -> Vec<&'static SynthPatternPreset> {
     SYNTH_PATTERN_PRESETS.iter().filter(|p| p.genre == genre).collect()
 }
+
+pub fn preset_by_name(name: &str) -> Option<&'static SynthPatternPreset> {
+    SYNTH_PATTERN_PRESETS.iter().find(|p| p.name == name)
+}
