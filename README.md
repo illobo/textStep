@@ -24,7 +24,7 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 ## Features
 
 - **8 Drum Tracks** — Kick, Snare, Closed HiHat, Open HiHat, Ride, Clap, Cowbell, Tom — each fully synthesized with 8 tweakable sound parameters
-- **Dual Polyphonic Synths** — Synth A + Synth B, each with 2 oscillators + sub, 2 ADSR envelopes, resonant filter, LFO with 6 waveforms, independent patterns and kits
+- **Dual Polyphonic Synths** — Synth A + Synth B with DJ-style crossfader, each with 2 oscillators + sub, 2 ADSR envelopes, resonant filter, dual LFOs with 6 waveforms, independent patterns and kits
 - **32-Step Sequencer** — 10 patterns and 8 kit slots with per-pattern BPM and swing
 - **Send Effects Chain** — Schroeder reverb, tempo-synced filtered delay, tube saturator, SSL-style glue compressor
 - **Live Performance** — drum pads, real-time recording, pattern queuing, per-pattern BPM
@@ -95,6 +95,9 @@ xattr -d com.apple.quarantine ./textstep
 | `Shift+T` | Cycle tube saturator: Off / Light / Medium / Heavy / Max |
 | `Shift+V` | Adjust master volume |
 | `<` / `>` | Swing ±5% |
+| `(` / `)` | Crossfader toward A / B |
+| Click `A` / `B` | Mute/unmute Synth A / B |
+| Click `C` | Reset crossfader to center |
 
 ### Navigation
 

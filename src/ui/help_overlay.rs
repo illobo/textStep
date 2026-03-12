@@ -88,7 +88,7 @@ pub fn render_help(f: &mut Frame, area: Rect) {
              "F2",         "Toggle synths"),
         row3("< / >",      "Swing ±5%",
              "~",          "Spectrum/VU",
-             "",            ""),
+             "( / )",      "Crossfader A/B"),
         Line::from(Span::raw("")),
         hdr("Patterns & Kits",  "Synth A + B Grid", "File / Project"),
         row3("q w e r t ..",    "Pattern 1-10",
@@ -113,7 +113,10 @@ pub fn render_help(f: &mut Frame, area: Rect) {
              "Pat/Kit/Loop",    "Per-synth"),
         row3("",                "",
              "Alt+Up/Dn",       "Adjust+audition",
-             "Ctrl+P/L/J/Q",   "File ops"),
+             "Click A/B",       "Mute synth A/B"),
+        row3("",                "",
+             "",                "",
+             "Click C",         "Center crossfader"),
     ];
 
     let paragraph = Paragraph::new(lines).block(block);
