@@ -124,6 +124,7 @@ pub struct AudioEngine {
     transport: Transport,
     drum_pattern: DrumPattern,
     master_volume: f32,
+    crossfader: f32, // 0.0=A, 0.5=center, 1.0=B
 
     // DSP
     drum_voices: [Box<dyn DrumVoiceDsp>; 8],
@@ -169,6 +170,7 @@ impl AudioEngine {
             transport: Transport::default(),
             drum_pattern: DrumPattern::default(),
             master_volume: 0.8,
+            crossfader: 0.5,
             drum_voices: create_drum_voices(sample_rate),
             synth_a: SynthInstance::new(sample_rate),
             synth_b: SynthInstance::new(sample_rate),
@@ -243,6 +245,7 @@ impl AudioEngine {
                     self.compressor
                         .set_amount(ep.compressor_amount, self.sample_rate);
                     self.master_volume = ep.master_volume;
+                    self.crossfader = ep.crossfader;
                     self.drum_saturator.set_drive(ep.drum_saturator_drive);
                     self.synth_a.saturator.set_drive(ep.synth_saturator_drive);
                     self.synth_b.saturator.set_drive(ep.synth_saturator_drive);
@@ -554,9 +557,14 @@ impl AudioEngine {
             let reverb_out = self.drum_reverb.tick(reverb_send);
             let delay_out = self.drum_delay.tick(delay_send);
 
+            // Apply crossfader gain: center (0.5) = both full, extremes fade one out
+            let xf = self.crossfader;
+            let gain_a = if xf <= 0.5 { 1.0 } else { 2.0 * (1.0 - xf) };
+            let gain_b = if xf >= 0.5 { 1.0 } else { 2.0 * xf };
+
             // Mix: per-instrument saturated signals + wet effects → headroom → master volume → compressor → clip
             // Both synths centered (mono to both channels)
-            let mono_wet = synth_a_out + synth_b_out + reverb_out + delay_out;
+            let mono_wet = synth_a_out * gain_a + synth_b_out * gain_b + reverb_out + delay_out;
             let mixed_l = (drum_sat_l + mono_wet) * 0.5 * self.master_volume;
             let mixed_r = (drum_sat_r + mono_wet) * 0.5 * self.master_volume;
             // Linked stereo compression: detect from mono sum, apply gain to both channels

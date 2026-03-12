@@ -273,6 +273,20 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             return;
         }
 
+        // Crossfader: ( / ) to move toward A / B
+        KeyCode::Char('(') => {
+            app.effect_params.crossfader = (app.effect_params.crossfader - PARAM_INCREMENT).clamp(0.0, 1.0);
+            app.send_effect_params();
+            app.dirty = true;
+            return;
+        }
+        KeyCode::Char(')') => {
+            app.effect_params.crossfader = (app.effect_params.crossfader + PARAM_INCREMENT).clamp(0.0, 1.0);
+            app.send_effect_params();
+            app.dirty = true;
+            return;
+        }
+
         // Record mode toggle: backtick
         KeyCode::Char('`') => {
             app.transport.record_mode = match app.transport.record_mode {
