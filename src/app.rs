@@ -389,6 +389,13 @@ pub struct FaderDrag {
     pub start_value: f32,
 }
 
+/// State for horizontal crossfader drag.
+#[derive(Clone, Debug)]
+pub struct CrossfaderDrag {
+    pub start_x: u16,
+    pub start_value: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FaderKind {
     Drum,
@@ -429,6 +436,10 @@ pub struct MouseState {
     pub synth_drag: Option<SynthDrag>,
     /// Active synth note length drag.
     pub synth_note_drag: Option<SynthNoteDrag>,
+    /// Active crossfader drag (horizontal).
+    pub crossfader_drag: Option<CrossfaderDrag>,
+    /// Last click on A/B label for double-click mute detection: (time, is_b_side).
+    pub last_xfade_label_click: Option<(Instant, bool)>,
 }
 
 impl Default for MouseState {
@@ -440,6 +451,8 @@ impl Default for MouseState {
             compressor_drag: None,
             synth_drag: None,
             synth_note_drag: None,
+            crossfader_drag: None,
+            last_xfade_label_click: None,
         }
     }
 }

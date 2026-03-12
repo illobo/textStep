@@ -21,10 +21,13 @@ pub struct EffectParams {
     pub synth_saturator_drive: f32,   // 0.0-1.0: synth tube saturator drive (0=off)
     #[serde(default = "default_drum_volume")]
     pub drum_volume: f32,        // 0.0-1.0: drum bus output volume
+    #[serde(default = "default_crossfader")]
+    pub crossfader: f32,         // 0.0-1.0: synth A/B crossfader (0=A, 0.5=center, 1=B)
 }
 
 fn default_master_volume() -> f32 { 0.8 }
 fn default_drum_volume() -> f32 { 0.8 }
+fn default_crossfader() -> f32 { 0.5 }
 
 impl Default for EffectParams {
     fn default() -> Self {
@@ -39,6 +42,7 @@ impl Default for EffectParams {
             drum_saturator_drive: 0.0,
             synth_saturator_drive: 0.0,
             drum_volume: 0.8,
+            crossfader: 0.5,
         }
     }
 }

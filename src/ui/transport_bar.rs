@@ -108,7 +108,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
     };
     let synth_a_kit_name = app.project.synth_kits.get(app.ui.synth_a.active_kit)
         .map(|k| k.name.as_str()).unwrap_or("");
-    let synth_a_line = status_line(
+    let mut synth_a_spans = status_line(
         "SA",
         app.ui.synth_a.active_pattern,
         app.ui.synth_a.queued_pattern,
@@ -117,7 +117,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
         synth_a_focused,
         &synth_a_loop_str,
         app.synth_a_pattern.params.volume,
-    );
+    ).spans;
 
     // ── Line 3: Synth B status line ───────────────────────────────
     let synth_b_focused = matches!(app.ui.focus, FocusSection::SynthBGrid | FocusSection::SynthBControls);
@@ -128,7 +128,7 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
     };
     let synth_b_kit_name = app.project.synth_kits.get(app.ui.synth_b.active_kit)
         .map(|k| k.name.as_str()).unwrap_or("");
-    let synth_b_line = status_line(
+    let mut synth_b_spans = status_line(
         "SB",
         app.ui.synth_b.active_pattern,
         app.ui.synth_b.queued_pattern,
@@ -137,7 +137,17 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
         synth_b_focused,
         &synth_b_loop_str,
         app.synth_b_pattern.params.volume,
-    );
+    ).spans;
+
+    // Append crossfader to SB line and center-reset button to SA line
+    let xf = app.effect_params.crossfader;
+    let a_muted = app.synth_a_pattern.params.mute;
+    let b_muted = app.synth_b_pattern.params.mute;
+    synth_b_spans.extend(crossfader_spans(xf, a_muted, b_muted));
+    synth_a_spans.extend(center_reset_spans());
+
+    let synth_a_line = Line::from(synth_a_spans);
+    let synth_b_line = Line::from(synth_b_spans);
 
     // ── Line 4: Drum status line ──────────────────────────────────
     let drum_focused = matches!(app.ui.focus, FocusSection::DrumGrid | FocusSection::Knobs);
@@ -202,6 +212,96 @@ fn gauge_spans<'a>(value: f32, width: usize, fill_style: Style, empty_style: Sty
     } else {
         Span::styled(s, empty_style)
     }
+}
+
+// ── Crossfader constants ─────────────────────────────────────────────────────
+
+/// Width of the crossfader rail in characters (between ├ and ┤).
+pub const XFADE_RAIL_WIDTH: usize = 28;
+
+/// Column offset of the crossfader area from inner_x on the SB status line.
+/// Status line content width: label(2) + "  Pattern: "(11) + keys(19) + " │ Kit: "(8)
+/// + nums(15) + "  Loop[NN]"(10) + "  Vol:"(6) + gauge(8) + pct(3) = 82
+pub const XFADE_OFFSET: u16 = 82;
+
+/// Center position of the rail (for the "C" button alignment on SA line).
+/// XFADE_OFFSET + 3(gap) + 3(" A ") + 1("├") + rail_width/2
+pub const XFADE_CENTER_COL: u16 = XFADE_OFFSET + 7 + (XFADE_RAIL_WIDTH as u16) / 2;
+
+/// Interpolate an RGB color toward black by a factor (0.0 = full color, 1.0 = black).
+fn fade_color(base: Color, fade: f32) -> Color {
+    let fade = fade.clamp(0.0, 1.0);
+    if let Color::Rgb(r, g, b) = base {
+        Color::Rgb(
+            (r as f32 * (1.0 - fade)) as u8,
+            (g as f32 * (1.0 - fade)) as u8,
+            (b as f32 * (1.0 - fade)) as u8,
+        )
+    } else {
+        base
+    }
+}
+
+/// Build crossfader spans: "   A ├─────────────│⧫──────────────┤ B"
+/// Center marker │ at the midpoint of the rail.
+fn crossfader_spans(xf: f32, a_muted: bool, b_muted: bool) -> Vec<Span<'static>> {
+    let xf = xf.clamp(0.0, 1.0);
+
+    // Brightness for each label: center=1.0, opposite extreme=0.0
+    let a_brightness = if xf <= 0.5 { 1.0 } else { 2.0 * (1.0 - xf) };
+    let b_brightness = if xf >= 0.5 { 1.0 } else { 2.0 * xf };
+
+    // Amber theme: active = AMBER bg + dark text, muted = AMBER_DIM bg + dim text
+    let a_base_bg = if a_muted { theme::AMBER_DIM } else { theme::AMBER };
+    let b_base_bg = if b_muted { theme::AMBER_DIM } else { theme::AMBER };
+    let label_fg = theme::BG; // dark text on amber bg
+
+    // Fade bg and fg toward black based on crossfader position
+    let a_bg = fade_color(a_base_bg, 1.0 - a_brightness);
+    let a_fg = fade_color(label_fg, 1.0 - a_brightness);
+    let b_bg = fade_color(b_base_bg, 1.0 - b_brightness);
+    let b_fg = fade_color(label_fg, 1.0 - b_brightness);
+
+    // Cursor position on the rail
+    let cursor_pos = (xf * (XFADE_RAIL_WIDTH - 1) as f32).round() as usize;
+    let center_pos = XFADE_RAIL_WIDTH / 2;
+
+    let rail_style = Style::default().fg(theme::DIM_TEXT);
+    let center_style = Style::default().fg(theme::BORDER);
+    let cursor_style = Style::default().fg(theme::AMBER).add_modifier(Modifier::BOLD);
+
+    // Build rail as individual spans: each char styled separately for cursor + center marker
+    let mut rail_spans: Vec<Span<'static>> = Vec::with_capacity(XFADE_RAIL_WIDTH);
+    for i in 0..XFADE_RAIL_WIDTH {
+        if i == cursor_pos {
+            rail_spans.push(Span::styled("\u{29EB}", cursor_style)); // ⧫ bowtie
+        } else if i == center_pos {
+            rail_spans.push(Span::styled("\u{2502}", center_style)); // │ center marker
+        } else {
+            rail_spans.push(Span::styled("\u{2500}", rail_style)); // ─
+        }
+    }
+
+    let mut spans = vec![
+        Span::styled("   ", Style::default()),
+        Span::styled(" A ", Style::default().fg(a_fg).bg(a_bg).add_modifier(Modifier::BOLD)),
+        Span::styled("\u{251C}", rail_style), // ├
+    ];
+    spans.extend(rail_spans);
+    spans.push(Span::styled("\u{2524}", rail_style)); // ┤
+    spans.push(Span::styled(" B ", Style::default().fg(b_fg).bg(b_bg).add_modifier(Modifier::BOLD)));
+    spans
+}
+
+/// Build center-reset button spans for the SA line, padded to align with crossfader center.
+/// Places "C" at the same column as the center marker on the rail below.
+fn center_reset_spans() -> Vec<Span<'static>> {
+    // Pad from end of status line content to XFADE_CENTER_COL - XFADE_OFFSET
+    let pad = (XFADE_CENTER_COL - XFADE_OFFSET) as usize;
+    vec![
+        Span::styled(" ".repeat(pad), Style::default()),
+        Span::styled("C", Style::default().fg(theme::AMBER).add_modifier(Modifier::BOLD)),
+    ]
 }
 
 /// Pattern slot key labels (QWERTYUIOP = patterns 1-10).

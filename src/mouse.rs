@@ -6,12 +6,12 @@ use std::time::Instant;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-use crate::app::{App, CompressorDrag, DragState, DrumControlField, FaderDrag, FaderKind, FocusSection, KNOB_FIELDS, ModalState, SynthDrag, SynthNoteDrag};
+use crate::app::{App, CompressorDrag, CrossfaderDrag, DragState, DrumControlField, FaderDrag, FaderKind, FocusSection, KNOB_FIELDS, ModalState, SynthDrag, SynthNoteDrag};
 use crate::messages::{SynthId, UiToAudio};
 use crate::sequencer::drum_pattern::{NUM_DRUM_TRACKS, TRACK_IDS};
 use crate::sequencer::project::{NUM_KITS, NUM_PATTERNS};
 use crate::ui::layout::{compute_dual_layout, DualSynthLayout};
-use crate::ui::transport_bar::{STATUS_PAT_OFFSET, STATUS_KIT_OFFSET, STATUS_VOL_OFFSET, STATUS_VOL_WIDTH};
+use crate::ui::transport_bar::{STATUS_PAT_OFFSET, STATUS_KIT_OFFSET, STATUS_VOL_OFFSET, STATUS_VOL_WIDTH, XFADE_OFFSET, XFADE_RAIL_WIDTH, XFADE_CENTER_COL};
 
 /// Threshold for double-click detection.
 const DOUBLE_CLICK_MS: u128 = 300;
@@ -51,6 +51,7 @@ pub fn handle_mouse(app: &mut App, event: MouseEvent, term_size: Rect) {
             app.ui.mouse.fader_drag = None;
             app.ui.mouse.synth_drag = None;
             app.ui.mouse.synth_note_drag = None;
+            app.ui.mouse.crossfader_drag = None;
         }
         MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
             let delta: f32 = if matches!(event.kind, MouseEventKind::ScrollUp) { 0.01 } else { -0.01 };
@@ -112,6 +113,11 @@ fn handle_scroll(app: &mut App, col: u16, row: u16, delta: f32, term_size: Rect)
         app.effect_params.compressor_amount = (app.effect_params.compressor_amount + delta).clamp(0.0, 1.0);
         app.send_effect_params();
         app.dirty = true;
+    } else if hit_test_crossfader_rail(col, row, ly.transport).is_some() {
+        // Scroll over crossfader rail
+        app.effect_params.crossfader = (app.effect_params.crossfader + delta).clamp(0.0, 1.0);
+        app.send_effect_params();
+        app.dirty = true;
     }
 }
 
@@ -160,6 +166,8 @@ fn handle_left_down(app: &mut App, col: u16, row: u16, term_size: Rect) {
     // ── Bottom / transport zones ────────────────────────────────────
     } else if let Some(track) = hit_test_activity_pad(col, row, ly.activity_bar) {
         handle_pad_click(app, track);
+    } else if let Some(xfade_hit) = hit_test_crossfader(col, row, ly.transport) {
+        handle_crossfader_click(app, col, xfade_hit, ly.transport);
     } else if hit_test_compressor_gauge(col, row, ly.transport) {
         handle_compressor_click(app, row);
     } else if let Some(kind) = hit_test_volume_slider(col, row, ly.transport) {
@@ -906,6 +914,16 @@ fn handle_drag(app: &mut App, col: u16, row: u16, _term_size: Rect) {
         return;
     }
 
+    // Check if dragging the crossfader (horizontal)
+    if let Some(ref xd) = app.ui.mouse.crossfader_drag {
+        let delta_x = col as f32 - xd.start_x as f32;
+        let new_value = (xd.start_value + delta_x / XFADE_RAIL_WIDTH as f32).clamp(0.0, 1.0);
+        app.effect_params.crossfader = new_value;
+        app.send_effect_params();
+        app.dirty = true;
+        return;
+    }
+
     // Check if dragging a synth knob
     if let Some(ref d) = app.ui.mouse.synth_drag {
         let d = d.clone();
@@ -1126,5 +1144,103 @@ fn hit_test_volume_slider(col: u16, row: u16, transport_area: Rect) -> Option<Fa
         Some(section)
     } else {
         None
+    }
+}
+
+// ── Crossfader hit testing ──────────────────────────────────────────────────
+
+/// Hit result for crossfader clicks.
+#[derive(Clone, Copy, Debug)]
+enum CrossfaderHit {
+    LabelA,
+    LabelB,
+    Rail,
+    CenterReset,
+}
+
+/// Compute the rail start column for the crossfader.
+fn xfade_rail_start(transport_area: Rect) -> u16 {
+    // inner_x + XFADE_OFFSET + 3(gap) + 3(" A ") + 1("├")
+    transport_area.x + 1 + XFADE_OFFSET + 7
+}
+
+/// Hit-test the crossfader on the SB status line (line 3 = transport_area.y + 3).
+/// Also checks the "C" center-reset button on SA line (transport_area.y + 2).
+fn hit_test_crossfader(col: u16, row: u16, transport_area: Rect) -> Option<CrossfaderHit> {
+    let sb_row = transport_area.y + 3;
+    let sa_row = transport_area.y + 2;
+    let inner_x = transport_area.x + 1;
+    let base = inner_x + XFADE_OFFSET;
+
+    if row == sa_row {
+        // "C" button on SA line, aligned to center of rail
+        let c_col = inner_x + XFADE_CENTER_COL;
+        if col == c_col {
+            return Some(CrossfaderHit::CenterReset);
+        }
+        return None;
+    }
+
+    if row != sb_row {
+        return None;
+    }
+
+    // Layout on SB line: "   " (3) + " A " (3) + "├" (1) + rail (28) + "┤" (1) + " B " (3)
+    let a_label_start = base + 3;
+    let rail_start = base + 7;
+    let rail_end = rail_start + XFADE_RAIL_WIDTH as u16;
+    let b_label_start = rail_end + 1;
+
+    if col >= a_label_start && col < a_label_start + 3 {
+        Some(CrossfaderHit::LabelA)
+    } else if col >= b_label_start && col < b_label_start + 3 {
+        Some(CrossfaderHit::LabelB)
+    } else if col >= rail_start && col < rail_end {
+        Some(CrossfaderHit::Rail)
+    } else {
+        None
+    }
+}
+
+/// Hit-test just the rail area (for scroll handling).
+fn hit_test_crossfader_rail(col: u16, row: u16, transport_area: Rect) -> Option<()> {
+    match hit_test_crossfader(col, row, transport_area)? {
+        CrossfaderHit::Rail => Some(()),
+        _ => None,
+    }
+}
+
+/// Handle click on the crossfader area.
+fn handle_crossfader_click(app: &mut App, col: u16, hit: CrossfaderHit, transport_area: Rect) {
+    match hit {
+        CrossfaderHit::LabelA => {
+            // Single-click toggles mute
+            app.synth_a_pattern.params.mute = !app.synth_a_pattern.params.mute;
+            app.send_synth_pattern(SynthId::A);
+        }
+        CrossfaderHit::LabelB => {
+            app.synth_b_pattern.params.mute = !app.synth_b_pattern.params.mute;
+            app.send_synth_pattern(SynthId::B);
+        }
+        CrossfaderHit::CenterReset => {
+            // Reset crossfader to center
+            app.effect_params.crossfader = 0.5;
+            app.send_effect_params();
+            app.dirty = true;
+        }
+        CrossfaderHit::Rail => {
+            // Click on rail: set crossfader to clicked position and start drag
+            let rail_start = xfade_rail_start(transport_area);
+            let rel = (col - rail_start) as f32 / (XFADE_RAIL_WIDTH - 1) as f32;
+            let new_value = rel.clamp(0.0, 1.0);
+            app.effect_params.crossfader = new_value;
+            app.send_effect_params();
+            app.dirty = true;
+            // Start drag from this position (delta will be 0 initially)
+            app.ui.mouse.crossfader_drag = Some(CrossfaderDrag {
+                start_x: col,
+                start_value: new_value,
+            });
+        }
     }
 }
