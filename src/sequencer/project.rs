@@ -1141,16 +1141,6 @@ mod demo_tests {
     use super::*;
 
     #[test]
-    fn demo_house_kick_is_four_on_the_floor() {
-        let proj = demo_project();
-        let steps = hex_to_steps(&proj.patterns[0].steps[0]); // Kick
-        assert!(steps[0]);  // beat 1
-        assert!(steps[4]);  // beat 2
-        assert!(steps[8]);  // beat 3
-        assert!(steps[12]); // beat 4
-    }
-
-    #[test]
     fn demo_project_has_10_patterns() {
         let proj = demo_project();
         assert_eq!(proj.patterns.len(), 10);
@@ -1159,8 +1149,43 @@ mod demo_tests {
     #[test]
     fn demo_patterns_have_bpm() {
         let proj = demo_project();
-        assert!((proj.patterns[0].bpm - 125.0).abs() < 0.01); // House
-        assert!((proj.patterns[7].bpm - 170.0).abs() < 0.01); // D&B
+        assert!((proj.patterns[0].bpm - 138.0).abs() < 0.01); // Acid Techno
+        assert!((proj.patterns[6].bpm - 174.0).abs() < 0.01); // D&B
+        assert!((proj.patterns[9].bpm -  90.0).abs() < 0.01); // Ambient
+    }
+
+    #[test]
+    fn demo_patterns_have_nonempty_steps() {
+        let proj = demo_project();
+        for (i, pat) in proj.patterns.iter().enumerate() {
+            let has_notes = pat.steps.iter().any(|s| s != "00000000");
+            assert!(has_notes, "Pattern {} ({}) has no steps", i, pat.name);
+        }
+    }
+
+    #[test]
+    fn demo_synth_kits_have_presets() {
+        let proj = demo_project();
+        assert_eq!(proj.synth_kits.len(), NUM_KITS);
+        assert_eq!(proj.synth_b_kits.len(), NUM_KITS);
+        // Verify kits have named presets (not default names)
+        assert_eq!(proj.synth_kits[0].name, "Wobble Bass");
+        assert_eq!(proj.synth_b_kits[0].name, "Screamer");
+    }
+
+    #[test]
+    fn demo_synth_patterns_have_notes() {
+        let proj = demo_project();
+        assert_eq!(proj.synth_patterns.len(), NUM_PATTERNS);
+        assert_eq!(proj.synth_b_patterns.len(), NUM_PATTERNS);
+        for (i, pat) in proj.synth_patterns.iter().enumerate() {
+            let has_notes = pat.steps.iter().any(|s| s.active);
+            assert!(has_notes, "Synth A pattern {} ({}) has no notes", i, pat.name);
+        }
+        for (i, pat) in proj.synth_b_patterns.iter().enumerate() {
+            let has_notes = pat.steps.iter().any(|s| s.active);
+            assert!(has_notes, "Synth B pattern {} ({}) has no notes", i, pat.name);
+        }
     }
 
     #[test]
@@ -1169,8 +1194,9 @@ mod demo_tests {
         let json = serde_json::to_string(&proj).unwrap();
         let loaded: ProjectFile = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.patterns.len(), 10);
-        assert_eq!(loaded.patterns[0].name, "House");
-        assert!((loaded.patterns[0].bpm - 125.0).abs() < 0.01);
+        assert_eq!(loaded.patterns[0].name, "Acid Techno 138");
+        assert!((loaded.patterns[0].bpm - 138.0).abs() < 0.01);
+        assert_eq!(loaded.synth_kits[0].name, "Wobble Bass");
     }
 
     /// Render all genre kit voices to WAV files for auditioning.
