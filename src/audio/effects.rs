@@ -78,6 +78,13 @@ pub struct ReverbEffect {
     feedback: f32,
     damping: f32,
     wet: f32,
+    // Early reflections: 5 fixed taps for spatial definition before diffuse tail
+    er_buf: Vec<f32>,
+    er_buf_size: usize,
+    er_pos: usize,
+    er_taps: [usize; 5],
+    er_gains: [f32; 5],
+    er_wet: f32,
 }
 
 impl ReverbEffect {
@@ -109,6 +116,18 @@ impl ReverbEffect {
         }
         let allpass_total = offset;
 
+        // Early reflections: 5 taps at 3ms, 7ms, 11ms, 17ms, 23ms
+        let er_delays_ms: [f64; 5] = [3.0, 7.0, 11.0, 17.0, 23.0];
+        let er_buf_size = (sample_rate * 0.03) as usize + 1; // max 30ms
+        let er_taps: [usize; 5] = [
+            (er_delays_ms[0] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[1] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[2] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[3] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[4] * 0.001 * sample_rate) as usize,
+        ];
+        let er_gains: [f32; 5] = [0.35, 0.25, 0.20, 0.15, 0.10];
+
         Self {
             comb_buf: vec![0.0; comb_total],
             comb_lengths,
@@ -122,19 +141,39 @@ impl ReverbEffect {
             feedback: 0.7,
             damping: 0.25,
             wet: 0.3,
+            er_buf: vec![0.0; er_buf_size],
+            er_buf_size,
+            er_pos: 0,
+            er_taps,
+            er_gains,
+            er_wet: 0.3,
         }
     }
 
     /// Update reverb parameters. amount: 0-1, damping: 0-1.
     pub fn set_params(&mut self, amount: f32, damping: f32) {
-        // Feedback: 0.50 at amount=0, up to 0.92 at amount=1
-        self.feedback = (0.50 + amount * 0.42).min(0.92);
+        // Reduced feedback ceiling (0.85 max) for cleaner decay
+        self.feedback = (0.50 + amount * 0.35).min(0.85);
         self.damping = damping;
         self.wet = amount * 0.7;
+        self.er_wet = amount * 0.4; // early reflections slightly louder than diffuse tail
     }
 
     /// Process one sample of reverb input, return wet output.
     pub fn tick(&mut self, input: f32) -> f32 {
+        // Early reflections: read tapped delays for spatial definition
+        let mut er_sum = 0.0_f32;
+        for i in 0..5 {
+            let tap_pos = if self.er_pos >= self.er_taps[i] {
+                self.er_pos - self.er_taps[i]
+            } else {
+                self.er_buf_size - (self.er_taps[i] - self.er_pos)
+            };
+            er_sum += self.er_buf[tap_pos] * self.er_gains[i];
+        }
+        self.er_buf[self.er_pos] = input;
+        self.er_pos = (self.er_pos + 1) % self.er_buf_size;
+
         let mut comb_sum = 0.0_f32;
 
         for i in 0..4 {
@@ -170,7 +209,7 @@ impl ReverbEffect {
             self.allpass_pos[i] = (pos + 1) % len;
         }
 
-        out * self.wet
+        out * self.wet + er_sum * self.er_wet
     }
 }
 
@@ -639,6 +678,34 @@ mod tests {
         }
         assert!(out < loud, "Compressed output {} should be less than input {}", out, loud);
         assert!(out > 0.0);
+    }
+
+    #[test]
+    fn test_reverb_early_reflections() {
+        let mut reverb = ReverbEffect::new(48000.0);
+        reverb.set_params(0.5, 0.3);
+        let _first = reverb.tick(1.0);
+        let mut found_reflection = false;
+        for _i in 0..960 {
+            let out = reverb.tick(0.0);
+            if out.abs() > 0.01 {
+                found_reflection = true;
+                break;
+            }
+        }
+        assert!(found_reflection, "Should hear early reflections within 20ms");
+    }
+
+    #[test]
+    fn test_reverb_decays() {
+        let mut reverb = ReverbEffect::new(48000.0);
+        reverb.set_params(1.0, 0.5);
+        reverb.tick(1.0);
+        let mut last = 1.0_f32;
+        for _ in 0..48000 {
+            last = reverb.tick(0.0);
+        }
+        assert!(last.abs() < 0.1, "Reverb should decay after 1s, got {}", last);
     }
 
     #[test]
