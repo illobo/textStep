@@ -8,6 +8,7 @@
 /// Sample-accurate linear parameter ramp to prevent zipper noise.
 /// Use for any parameter that changes in real-time (volume, cutoff, etc.).
 #[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
 pub struct RampedParam {
     current: f32,
     target: f32,
@@ -15,6 +16,7 @@ pub struct RampedParam {
     remaining: u32,
 }
 
+#[allow(dead_code)]
 impl RampedParam {
     pub fn new(initial: f32) -> Self {
         Self {
@@ -151,6 +153,7 @@ impl ReverbEffect {
     }
 
     /// Update reverb parameters. amount: 0-1, damping: 0-1.
+    #[allow(dead_code)]
     pub fn set_params(&mut self, amount: f32, damping: f32) {
         // Reduced feedback ceiling (0.85 max) for cleaner decay
         self.feedback = (0.50 + amount * 0.35).min(0.85);
@@ -272,6 +275,7 @@ impl DelaySub {
     }
 
     /// Short label for display.
+    #[allow(dead_code)]
     pub fn label(&self) -> &'static str {
         match self {
             DelaySub::Sixteenth =>       "1/16",
@@ -706,6 +710,7 @@ impl FdnReverb {
     }
 
     /// Process one mono sample, return mono wet output.
+    #[allow(dead_code)]
     pub fn tick(&mut self, input: f32) -> f32 {
         // Early reflections
         let mut er_sum = 0.0_f32;

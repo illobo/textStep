@@ -6,7 +6,7 @@ use std::time::Instant;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-use crate::app::{App, CompressorDrag, CrossfaderDrag, DragState, DrumControlField, FaderDrag, FaderKind, FocusSection, KNOB_FIELDS, ModalState, SynthDrag, SynthNoteDrag};
+use crate::app::{App, CompressorDrag, CrossfaderDrag, DragState, DrumControlField, FaderKind, FocusSection, KNOB_FIELDS, ModalState, SynthDrag, SynthNoteDrag};
 use crate::messages::{SynthId, UiToAudio};
 use crate::sequencer::drum_pattern::{NUM_DRUM_TRACKS, TRACK_IDS};
 use crate::sequencer::project::{NUM_KITS, NUM_PATTERNS};
@@ -105,7 +105,6 @@ fn handle_scroll(app: &mut App, col: u16, row: u16, delta: f32, term_size: Rect)
                 app.effect_params.drum_volume = (app.effect_params.drum_volume + delta).clamp(0.0, 1.0);
                 app.send_effect_params();
             }
-            _ => {}
         }
         app.dirty = true;
     } else if hit_test_compressor_gauge(col, row, ly.transport) {
@@ -178,7 +177,6 @@ fn handle_left_down(app: &mut App, col: u16, row: u16, term_size: Rect) {
             FaderKind::SynthA => app.queue_synth_pattern_for(SynthId::A, idx),
             FaderKind::SynthB => app.queue_synth_pattern_for(SynthId::B, idx),
             FaderKind::Drum => app.queue_pattern(idx),
-            _ => {}
         }
     } else if let Some((idx, section)) = hit_test_kit_selector(col, row, ly.transport) {
         use crate::app::FaderKind;
@@ -186,7 +184,6 @@ fn handle_left_down(app: &mut App, col: u16, row: u16, term_size: Rect) {
             FaderKind::SynthA => app.switch_synth_kit_for(SynthId::A, idx),
             FaderKind::SynthB => app.switch_synth_kit_for(SynthId::B, idx),
             FaderKind::Drum => app.switch_kit(idx),
-            _ => {}
         }
     } else if hit_test_play_button(col, row, ly.transport) {
         use crate::sequencer::transport::PlayState;
@@ -650,7 +647,7 @@ fn handle_synth_knobs_click(app: &mut App, synth_id: SynthId, field: SynthContro
         let max_val: u8 = match field {
             SynthControlField::FilterType => 2,
             SynthControlField::LfoWaveform | SynthControlField::Lfo2Waveform =>
-                (crate::sequencer::synth_pattern::NUM_LFO_WAVEFORMS - 1),
+                crate::sequencer::synth_pattern::NUM_LFO_WAVEFORMS - 1,
             SynthControlField::LfoDivision | SynthControlField::Lfo2Division =>
                 (crate::sequencer::synth_pattern::LFO_DIVISIONS.len() - 1) as u8,
             SynthControlField::LfoDest | SynthControlField::Lfo2Dest =>
@@ -776,8 +773,8 @@ fn hit_test_mute_solo(
 
     // "[M] [S]" = positions 0..3 = [M], 3 = space, 4..7 = [S]
     match rel_x {
-        0..3 => Some((track, true)),   // Mute
-        4..7 => Some((track, false)),  // Solo
+        0..=2 => Some((track, true)),   // Mute
+        4..=6 => Some((track, false)),  // Solo
         _ => None,
     }
 }
@@ -1081,7 +1078,6 @@ fn handle_volume_slider_click(app: &mut App, kind: FaderKind, row: u16) {
         FaderKind::SynthA => app.synth_a_pattern.params.volume,
         FaderKind::SynthB => app.synth_b_pattern.params.volume,
         FaderKind::Drum => app.effect_params.drum_volume,
-        FaderKind::Synth => app.synth_a_pattern.params.volume, // legacy fallback
     };
     app.ui.mouse.fader_drag = Some(crate::app::FaderDrag {
         kind,
@@ -1106,7 +1102,7 @@ fn handle_fader_drag(app: &mut App, row: u16) {
             app.effect_params.drum_volume = new_value;
             app.send_effect_params();
         }
-        FaderKind::Synth | FaderKind::SynthA => {
+        FaderKind::SynthA => {
             app.synth_a_pattern.params.volume = new_value;
             app.send_synth_pattern(SynthId::A);
         }
