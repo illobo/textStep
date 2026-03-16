@@ -331,6 +331,12 @@ impl SplashState {
     }
 }
 
+/// Scene browser state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SceneBrowserState {
+    pub selected: usize,
+}
+
 /// Modal overlay state for save/load dialogs.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ModalState {
@@ -352,6 +358,8 @@ pub enum ModalState {
     PresetBrowser(crate::presets::PresetBrowserState),
     /// Pattern preset browser
     PatternBrowser(crate::presets::PatternBrowserState),
+    /// Scene browser
+    SceneBrowser(SceneBrowserState),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -361,6 +369,7 @@ pub enum ModalAction {
     SaveKit,
     LoadProject,
     LoadKit,
+    RenameScene(usize),
 }
 
 // ── Mouse State ──────────────────────────────────────────────────────────────
@@ -535,6 +544,8 @@ pub struct UiState {
     pub active_pattern: usize,
     /// Queued pattern to switch to at end of loop (None = no change pending)
     pub queued_pattern: Option<usize>,
+    /// Queued scene to apply at drum loop wrap (None = no scene pending)
+    pub queued_scene: Option<usize>,
     /// Current active kit index (0-7)
     pub active_kit: usize,
     /// Modal overlay
@@ -587,6 +598,7 @@ impl Default for UiState {
             trigger_flash: [0; NUM_DRUM_TRACKS],
             active_pattern: 0,
             queued_pattern: None,
+            queued_scene: None,
             active_kit: 0,
             modal: ModalState::None,
             status_msg: None,
@@ -721,6 +733,9 @@ impl App {
 
                     // Check for queued drum pattern switch at loop wrap (step 0)
                     if drum_step == 0 && global_step > 0 {
+                        if let Some(scene_idx) = self.ui.queued_scene.take() {
+                            self.apply_scene_immediate(scene_idx);
+                        }
                         if let Some(next) = self.ui.queued_pattern.take() {
                             self.switch_pattern(next);
                         }
@@ -891,6 +906,79 @@ impl App {
         self.project.active_synth_pattern = self.ui.synth_a.active_pattern;
         self.project.active_synth_kit = self.ui.synth_a.active_kit;
     }
+
+    // ── Scene management ────────────────────────────────────────────────
+
+    /// Open the scene browser modal.
+    pub fn open_scene_browser(&mut self) {
+        self.ui.modal = ModalState::SceneBrowser(SceneBrowserState { selected: 0 });
+    }
+
+    /// Save the current state as a scene in the given slot.
+    pub fn save_scene(&mut self, slot: usize) {
+        if slot >= project::NUM_SCENES { return; }
+        let scene = project::Scene {
+            name: format!("Scene {}", slot + 1),
+            drum_pattern: self.ui.active_pattern,
+            drum_kit: self.ui.active_kit,
+            synth_a_pattern: self.ui.synth_a.active_pattern,
+            synth_a_kit: self.ui.synth_a.active_kit,
+            synth_b_pattern: self.ui.synth_b.active_pattern,
+            synth_b_kit: self.ui.synth_b.active_kit,
+            bpm: self.transport.bpm,
+            swing: self.transport.swing,
+        };
+        // Extend scenes vec if needed
+        while self.project.scenes.len() <= slot {
+            self.project.scenes.push(None);
+        }
+        self.project.scenes[slot] = Some(scene);
+    }
+
+    /// Apply a scene immediately (switch all patterns/kits/bpm/swing).
+    pub fn apply_scene_immediate(&mut self, slot: usize) {
+        let scene = match self.project.scenes.get(slot) {
+            Some(Some(s)) => s.clone(),
+            _ => return,
+        };
+        self.store_current_to_project();
+        self.switch_pattern(scene.drum_pattern);
+        self.switch_kit(scene.drum_kit);
+        self.switch_synth_pattern(scene.synth_a_pattern);
+        self.switch_synth_kit(scene.synth_a_kit);
+        self.switch_synth_pattern_for(SynthId::B, scene.synth_b_pattern);
+        self.switch_synth_kit_for(SynthId::B, scene.synth_b_kit);
+        self.transport.bpm = scene.bpm;
+        self.transport.swing = scene.swing;
+        self.send_transport();
+    }
+
+    /// Queue a scene to apply at drum loop wrap. Clears individual queued patterns/kits.
+    pub fn queue_scene(&mut self, slot: usize) {
+        if matches!(self.project.scenes.get(slot), Some(Some(_))) {
+            self.ui.queued_scene = Some(slot);
+            // Clear individual queued changes
+            self.ui.queued_pattern = None;
+            self.ui.synth_a.queued_pattern = None;
+            self.ui.synth_b.queued_pattern = None;
+        }
+    }
+
+    /// Delete a scene from the given slot.
+    pub fn delete_scene(&mut self, slot: usize) {
+        if let Some(entry) = self.project.scenes.get_mut(slot) {
+            *entry = None;
+        }
+    }
+
+    /// Rename a scene in the given slot.
+    pub fn rename_scene(&mut self, slot: usize, name: &str) {
+        if let Some(Some(scene)) = self.project.scenes.get_mut(slot) {
+            scene.name = name.to_string();
+        }
+    }
+
+    // ── Pattern management (continued) ──────────────────────────────────
 
     /// Switch to a different pattern immediately.
     pub fn switch_pattern(&mut self, index: usize) {

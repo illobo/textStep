@@ -104,6 +104,14 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             handle_pattern_browser(app, key);
             return;
         }
+        ModalState::SceneBrowser(_) => {
+            // TODO: Implement in Task 5
+            // For now, just allow Esc to close
+            if key.code == KeyCode::Esc {
+                app.ui.modal = ModalState::None;
+            }
+            return;
+        }
         ModalState::None => {}
     }
 

@@ -161,6 +161,10 @@ pub fn render(f: &mut Frame, app: &App) {
         ModalState::PatternBrowser(pb) => {
             render_pattern_browser(f, size, pb);
         }
+        ModalState::SceneBrowser(_browser) => {
+            // TODO: Implement in Task 4
+            // Placeholder stub - proper rendering will be added in Task 4
+        }
         ModalState::None => {}
     }
 }
