@@ -50,6 +50,10 @@ pub const GAUGE_EMPTY:  &str = "\u{2591}"; // ░
 pub const STEP_ACTIVE:   &str = "\u{25A0}"; // ■
 pub const STEP_INACTIVE: &str = "\u{25A1}"; // □
 
+// ── Scene symbols ────────────────────────────────────────────
+pub const SCENE_PAT_SYMBOL: &str = "\u{266B}"; // ♫
+pub const SCENE_KIT_SYMBOL: &str = "\u{25C8}"; // ◈
+
 /// Style for a focused section border.
 pub fn focus_border_style(focused: bool) -> Style {
     if focused {
