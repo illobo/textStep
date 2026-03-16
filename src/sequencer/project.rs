@@ -18,6 +18,7 @@ use super::synth_pattern::{
 
 pub const NUM_PATTERNS: usize = 10;
 pub const NUM_KITS: usize = 8;
+pub const NUM_SCENES: usize = 16;
 
 // ── Serializable sound params (no mute/solo) ───────────────────────────────
 
@@ -370,6 +371,27 @@ impl SynthPatternData {
 // ── Project ─────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Scene {
+    pub name: String,
+    #[serde(default)]
+    pub drum_pattern: usize,
+    #[serde(default)]
+    pub drum_kit: usize,
+    #[serde(default)]
+    pub synth_a_pattern: usize,
+    #[serde(default)]
+    pub synth_a_kit: usize,
+    #[serde(default)]
+    pub synth_b_pattern: usize,
+    #[serde(default)]
+    pub synth_b_kit: usize,
+    #[serde(default = "default_bpm")]
+    pub bpm: f64,
+    #[serde(default = "default_swing")]
+    pub swing: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectFile {
     pub textstep: FileHeader,
     #[serde(default)]
@@ -409,6 +431,8 @@ pub struct ProjectFile {
     pub synth_b_patterns: Vec<SynthPatternData>,
     #[serde(default)]
     pub active_synth_b_pattern: usize,
+    #[serde(default)]
+    pub scenes: Vec<Option<Scene>>,
 }
 
 fn default_bpm() -> f64 { 120.0 }
@@ -500,6 +524,7 @@ impl Default for ProjectFile {
             active_synth_b_kit: 0,
             synth_b_patterns,
             active_synth_b_pattern: 0,
+            scenes: Vec::new(),
         }
     }
 }
@@ -641,6 +666,7 @@ pub fn demo_project() -> ProjectFile {
         active_synth_b_kit: 0,
         synth_b_patterns,
         active_synth_b_pattern: 0,
+        scenes: Vec::new(),
     }
 }
 
@@ -854,6 +880,18 @@ impl ProjectFile {
         }
         if self.active_synth_b_pattern >= self.synth_b_patterns.len() {
             self.active_synth_b_pattern = 0;
+        }
+
+        // Normalize scenes
+        for scene in &mut self.scenes {
+            if let Some(s) = scene {
+                if s.drum_pattern >= NUM_PATTERNS { s.drum_pattern = 0; }
+                if s.drum_kit >= NUM_KITS { s.drum_kit = 0; }
+                if s.synth_a_pattern >= NUM_PATTERNS { s.synth_a_pattern = 0; }
+                if s.synth_a_kit >= NUM_KITS { s.synth_a_kit = 0; }
+                if s.synth_b_pattern >= NUM_PATTERNS { s.synth_b_pattern = 0; }
+                if s.synth_b_kit >= NUM_KITS { s.synth_b_kit = 0; }
+            }
         }
     }
 }
@@ -1280,5 +1318,71 @@ mod demo_tests {
             println!();
         }
         println!("Done! Files in: {}/", output_dir.display());
+    }
+
+    #[test]
+    fn scene_serializes_roundtrip() {
+        let scene = Scene {
+            name: "Test Scene".to_string(),
+            drum_pattern: 2,
+            drum_kit: 3,
+            synth_a_pattern: 4,
+            synth_a_kit: 1,
+            synth_b_pattern: 5,
+            synth_b_kit: 6,
+            bpm: 130.0,
+            swing: 0.55,
+        };
+        let json = serde_json::to_string(&scene).unwrap();
+        let loaded: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.name, "Test Scene");
+        assert_eq!(loaded.drum_pattern, 2);
+        assert_eq!(loaded.drum_kit, 3);
+        assert_eq!(loaded.synth_a_pattern, 4);
+        assert_eq!(loaded.synth_a_kit, 1);
+        assert_eq!(loaded.synth_b_pattern, 5);
+        assert_eq!(loaded.synth_b_kit, 6);
+        assert!((loaded.bpm - 130.0).abs() < 0.01);
+        assert!((loaded.swing - 0.55).abs() < 0.01);
+    }
+
+    #[test]
+    fn old_project_without_scenes_loads() {
+        let json = r#"{
+            "textstep": {"format_version": 1},
+            "kit": {"tracks": []},
+            "kits": [],
+            "active_kit": 0,
+            "patterns": [],
+            "active_pattern": 0,
+            "active_synth_kit": 0,
+            "active_synth_pattern": 0
+        }"#;
+        let project: ProjectFile = serde_json::from_str(json).unwrap();
+        assert!(project.scenes.is_empty());
+    }
+
+    #[test]
+    fn normalize_clamps_scene_indices() {
+        let mut project = ProjectFile::default();
+        project.scenes = vec![Some(Scene {
+            name: "Bad".to_string(),
+            drum_pattern: 99,
+            drum_kit: 99,
+            synth_a_pattern: 99,
+            synth_a_kit: 99,
+            synth_b_pattern: 99,
+            synth_b_kit: 99,
+            bpm: 130.0,
+            swing: 0.5,
+        })];
+        project.normalize();
+        let s = project.scenes[0].as_ref().unwrap();
+        assert!(s.drum_pattern < NUM_PATTERNS);
+        assert!(s.drum_kit < NUM_KITS);
+        assert!(s.synth_a_pattern < NUM_PATTERNS);
+        assert!(s.synth_a_kit < NUM_KITS);
+        assert!(s.synth_b_pattern < NUM_PATTERNS);
+        assert!(s.synth_b_kit < NUM_KITS);
     }
 }
