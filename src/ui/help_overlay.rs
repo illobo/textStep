@@ -58,13 +58,13 @@ fn row3<'a>(
 /// covering transport, navigation, editing, and pattern management shortcuts.
 pub fn render_help(f: &mut Frame, area: Rect) {
     let block = Block::default()
-        .title(" Key Bindings (? to close) ")
+        .title(" 🎹 Key Bindings (? to close) ")
         .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow));
 
     let lines = vec![
-        hdr("Transport",        "Navigation",       "Sound & Editing"),
+        hdr("▶ Transport",       "🧭 Navigation",     "🎛 Sound & Editing"),
         row3("Space",       "Play / Pause",
              "Tab",         "Next section",
              "Shift+M",    "Mute track"),
@@ -93,7 +93,7 @@ pub fn render_help(f: &mut Frame, area: Rect) {
              "",           "",
              "",           ""),
         Line::from(Span::raw("")),
-        hdr("Patterns & Kits",  "Synth A + B Grid", "File / Project"),
+        hdr("🔀 Patterns & Kits", "🎹 Synth A + B",   "💾 File / Project"),
         row3("q w e r t ..",    "Pattern 1-10",
              "Up / Down",       "Pitch ±semitone",
              "Ctrl+S",          "Save project"),
@@ -110,7 +110,7 @@ pub fn render_help(f: &mut Frame, area: Rect) {
              "",                "",
              "Ctrl+J",          "Load kit"),
         Line::from(Span::raw("")),
-        hdr("Drum Pads",        "Scenes (Ctrl+E)",   "File / More"),
+        hdr("🥁 Drum Pads",      "🎬 Scenes (Ctrl+E)","📁 More"),
         row3("z x c v b n m ,", "Trigger drums",
              "Return",          "Queue scene",
              "Ctrl+P",          "Preset browser"),
