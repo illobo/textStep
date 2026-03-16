@@ -681,9 +681,9 @@ fn render_scene_browser(
     lines.push(Line::from(vec![
         Span::styled("\u{2191}\u{2193}", Style::default().fg(theme::CYAN)),
         Span::styled(" nav  ", Style::default().fg(theme::DIM_TEXT)),
-        Span::styled("Enter", Style::default().fg(theme::AMBER)),
+        Span::styled("Return", Style::default().fg(theme::AMBER)),
         Span::styled(" queue  ", Style::default().fg(theme::DIM_TEXT)),
-        Span::styled("S+Ret", Style::default().fg(theme::AMBER)),
+        Span::styled("!", Style::default().fg(theme::AMBER)),
         Span::styled(" now  ", Style::default().fg(theme::DIM_TEXT)),
         Span::styled("S", Style::default().fg(theme::PINK)),
         Span::styled(" save  ", Style::default().fg(theme::DIM_TEXT)),

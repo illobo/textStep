@@ -1294,16 +1294,13 @@ fn handle_scene_browser(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Enter => {
             let idx = browser.selected;
-            if key.modifiers.contains(KeyModifiers::SHIFT) {
-                // Immediate switch
-                app.apply_scene_immediate(idx);
-                app.show_status(format!("Scene {} applied", idx + 1));
-            } else {
-                // Queue switch
-                app.queue_scene(idx);
-                app.show_status(format!("Scene {} queued", idx + 1));
-            }
-            app.ui.modal = ModalState::None;
+            app.queue_scene(idx);
+            app.show_status(format!("Scene {} queued", idx + 1));
+        }
+        KeyCode::Char('!') => {
+            let idx = browser.selected;
+            app.apply_scene_immediate(idx);
+            app.show_status(format!("Scene {} applied", idx + 1));
         }
         KeyCode::Char('s') | KeyCode::Char('S') => {
             let idx = browser.selected;

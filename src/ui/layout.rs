@@ -370,16 +370,16 @@ mod tests {
 
     #[test]
     fn default_visibility_layout() {
-        // Default: synth B collapsed, everything else expanded
+        // Default: both synth knobs collapsed, both grids + drums + waveform visible
         let vis = PanelVisibility::default();
         let ly = compute_dual_layout(term(100), &vis);
 
-        assert!(ly.synth_a_knobs.height > 0);
+        assert_eq!(ly.synth_a_knobs, Rect::default());
+        assert!(ly.synth_a_knobs_collapsed.height > 0);
         assert!(ly.synth_a_grid.height > 0);
         assert_eq!(ly.synth_b_knobs, Rect::default());
-        assert_eq!(ly.synth_b_grid, Rect::default());
         assert!(ly.synth_b_knobs_collapsed.height > 0);
-        assert!(ly.synth_b_grid_collapsed.height > 0);
+        assert!(ly.synth_b_grid.height > 0);
         assert!(ly.drum_grid.height > 0);
         assert!(ly.drum_knobs.height > 0);
         assert!(ly.waveform.height > 0);

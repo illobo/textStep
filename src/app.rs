@@ -486,10 +486,10 @@ pub struct PanelVisibility {
 impl Default for PanelVisibility {
     fn default() -> Self {
         Self {
-            synth_a_knobs: true,
+            synth_a_knobs: false,  // Knobs collapsed by default
             synth_a_grid: true,
-            synth_b_knobs: false,  // Synth B collapsed by default
-            synth_b_grid: false,
+            synth_b_knobs: false,  // Knobs collapsed by default
+            synth_b_grid: true,
             drum_grid: true,
             drum_knobs: true,
             waveform: true,
@@ -632,29 +632,43 @@ pub struct App {
 impl App {
     pub fn new(tx: Sender<UiToAudio>, rx: Receiver<AudioToUi>, display_buf: Arc<AudioDisplayBuffer>) -> Self {
         let project = project::demo_project();
+
+        // Use first scene if available, otherwise default to index 0
+        let (dp, dk, sap, sak, sbp, sbk, scene_bpm, scene_swing) =
+            if let Some(Some(scene)) = project.scenes.first() {
+                (scene.drum_pattern, scene.drum_kit,
+                 scene.synth_a_pattern, scene.synth_a_kit,
+                 scene.synth_b_pattern, scene.synth_b_kit,
+                 Some(scene.bpm), Some(scene.swing))
+            } else {
+                (0, 0, 0, 0, 0, 0, None, None)
+            };
+
         let mut drum_pattern = DrumPattern::default();
-        project.apply_kit_to_pattern(0, &mut drum_pattern);
-        project.load_pattern_steps(0, &mut drum_pattern);
+        project.apply_kit_to_pattern(dk, &mut drum_pattern);
+        project.load_pattern_steps(dp, &mut drum_pattern);
 
         let mut transport = Transport::default();
-        transport.bpm = project.bpm;
+        transport.bpm = scene_bpm.unwrap_or(project.bpm);
         transport.loop_config.drum_length = project.loop_length;
-        transport.swing = project.swing;
-        // Apply per-pattern BPM if set
-        if let Some(pat) = project.patterns.first() {
-            if pat.bpm > 0.0 {
-                transport.bpm = pat.bpm;
+        transport.swing = scene_swing.unwrap_or(project.swing);
+        // Apply per-pattern BPM if no scene BPM
+        if scene_bpm.is_none() {
+            if let Some(pat) = project.patterns.get(dp) {
+                if pat.bpm > 0.0 {
+                    transport.bpm = pat.bpm;
+                }
             }
         }
 
         // Load synth patterns and kits from project
         let mut synth_a_pattern = SynthPattern::default();
-        project.load_synth_pattern(0, &mut synth_a_pattern);
-        project.load_synth_kit(0, &mut synth_a_pattern);
+        project.load_synth_pattern(sap, &mut synth_a_pattern);
+        project.load_synth_kit(sak, &mut synth_a_pattern);
 
         let mut synth_b_pattern = SynthPattern::default();
-        project.load_synth_b_pattern(0, &mut synth_b_pattern);
-        project.load_synth_b_kit(0, &mut synth_b_pattern);
+        project.load_synth_b_pattern(sbp, &mut synth_b_pattern);
+        project.load_synth_b_kit(sbk, &mut synth_b_pattern);
 
         // Send initial state to audio thread so it has the pattern from the start
         let _ = tx.send(UiToAudio::SetTransport(transport));
@@ -662,8 +676,16 @@ impl App {
         let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::A, synth_a_pattern.clone()));
         let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::B, synth_b_pattern.clone()));
 
+        let mut ui = UiState::default();
+        ui.active_pattern = dp;
+        ui.active_kit = dk;
+        ui.synth_a.active_pattern = sap;
+        ui.synth_a.active_kit = sak;
+        ui.synth_b.active_pattern = sbp;
+        ui.synth_b.active_kit = sbk;
+
         Self {
-            ui: UiState::default(),
+            ui,
             transport,
             drum_pattern,
             synth_a_pattern,

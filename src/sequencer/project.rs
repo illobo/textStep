@@ -531,10 +531,19 @@ impl Default for ProjectFile {
 
 fn pattern_from_preset(name: &str, display_name: &str, bpm: f64) -> PatternData {
     if let Some(preset) = pattern_presets::preset_by_name(name) {
+        // Mirror 16-step patterns to fill 32 steps: repeat first 4 hex chars into last 4
+        let steps: Vec<String> = preset.steps.iter().map(|s| {
+            if s.len() == 8 && &s[4..] == "0000" {
+                // First half has data, second half empty — repeat first half
+                format!("{}{}", &s[..4], &s[..4])
+            } else {
+                s.to_string()
+            }
+        }).collect();
         PatternData {
             name: display_name.to_string(),
             bpm,
-            steps: preset.steps.iter().map(|s| s.to_string()).collect(),
+            steps,
         }
     } else {
         PatternData {
@@ -667,7 +676,7 @@ pub fn demo_project() -> ProjectFile {
         synth_b_patterns,
         active_synth_b_pattern: 0,
         scenes: vec![
-            Some(Scene { name: "Acid Techno".into(),   drum_pattern: 0, drum_kit: 0, synth_a_pattern: 0, synth_a_kit: 0, synth_b_pattern: 0, synth_b_kit: 0, bpm: 138.0, swing: 0.50 }),
+            Some(Scene { name: "bonza".into(),          drum_pattern: 5, drum_kit: 7, synth_a_pattern: 5, synth_a_kit: 5, synth_b_pattern: 4, synth_b_kit: 5, bpm: 140.0, swing: 0.50 }),
             Some(Scene { name: "Classic House".into(), drum_pattern: 1, drum_kit: 3, synth_a_pattern: 1, synth_a_kit: 1, synth_b_pattern: 1, synth_b_kit: 1, bpm: 122.0, swing: 0.50 }),
             Some(Scene { name: "Deep House".into(),    drum_pattern: 2, drum_kit: 3, synth_a_pattern: 2, synth_a_kit: 2, synth_b_pattern: 2, synth_b_kit: 2, bpm: 120.0, swing: 0.50 }),
             Some(Scene { name: "Driving Techno".into(),drum_pattern: 3, drum_kit: 2, synth_a_pattern: 3, synth_a_kit: 3, synth_b_pattern: 3, synth_b_kit: 3, bpm: 130.0, swing: 0.50 }),
