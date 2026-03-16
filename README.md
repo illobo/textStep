@@ -12,8 +12,8 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey?logo=linux&logoColor=white)](https://www.kernel.org/)
 [![Audio: CoreAudio / ALSA](https://img.shields.io/badge/Audio-CoreAudio_|_ALSA-green)](https://developer.apple.com/documentation/coreaudio)
 [![TUI: ratatui](https://img.shields.io/badge/TUI-ratatui-purple)](https://ratatui.rs/)
-[![Lines of Code](https://img.shields.io/badge/Lines_of_Code-17k-informational)]()
-[![Tests](https://img.shields.io/badge/Tests-31_passing-brightgreen)]()
+[![Lines of Code](https://img.shields.io/badge/Lines_of_Code-20k-informational)]()
+[![Tests](https://img.shields.io/badge/Tests-48_passing-brightgreen)]()
 
 ![TextStep Demo](assets/demo.gif)
 
@@ -26,14 +26,15 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 - **8 Drum Tracks** — Kick, Snare, Closed HiHat, Open HiHat, Ride, Clap, Cowbell, Tom — each fully synthesized with 8 tweakable sound parameters
 - **Dual Polyphonic Synths** — Synth A + Synth B with DJ-style crossfader, each with 2 oscillators + sub, 2 ADSR envelopes, resonant filter, dual LFOs with 6 waveforms, independent patterns and kits
 - **32-Step Sequencer** — 10 patterns and 8 kit slots with per-pattern BPM and swing
+- **16 Scene Slots** — snapshot and recall full instrument states (all patterns, kits, BPM, swing) with queued or immediate switching
 - **Send Effects Chain** — Schroeder reverb, tempo-synced filtered delay, tube saturator, SSL-style glue compressor
-- **Live Performance** — drum pads, real-time recording, pattern queuing, per-pattern BPM
+- **Live Performance** — drum pads, real-time recording, pattern queuing, scene-based arrangement
 - **Mouse Support** — click the grid, drag parameters Ableton-style, audition sounds from the activity bar
 - **Project System** — save/load `.tsp` files, standalone kit export, preset browser
 - **Collapsible Panels** — minimize/expand synth, drum knobs, and waveform sections; auto-adapts to small terminals
 - **Spectrum Analyzer** — real-time FFT spectrum display and VU meter with 90s Hi-Fi LED aesthetic
 
-Ships with **10 demo patterns** ready to play: House, Chicago House, Brit House, French House, Dirty House, Trance, Techno, Drum & Bass, Trap, and Moombahton.
+Ships with **10 demo scenes** ready to play: Acid Techno, Classic House, Deep House, Driving Techno, Lo-Fi Hip Hop, Trance, Drum & Bass, Electro Funk, Dub Techno, and Ambient — each with matched drum patterns, synth patterns, and kits.
 
 ## Getting Started
 
@@ -65,7 +66,7 @@ sudo apt-get install libasound2-dev   # Debian/Ubuntu
 Run the tests:
 
 ```bash
-cargo test    # 31 tests, runs in <1s
+cargo test    # 48 tests, runs in <1s
 ```
 
 ### Pre-built Binaries
@@ -158,12 +159,27 @@ TextStep features two independent polyphonic synthesizers (**Synth A** and **Syn
 
 Synth notes are triggered with `z` `x` `c` `v` when a synth grid is focused, with `Up/Down` for pitch and `(` `)` for octave shifts.
 
+### Scenes
+
+Scenes are snapshots of the full instrument state: which pattern and kit is selected for drums, Synth A, and Synth B, plus BPM and swing. Use them to arrange your track.
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+E` | Open scene browser |
+| `Return` | Queue scene (switches at drum loop end) |
+| `!` | Immediate scene switch |
+| `S` | Save current state to selected slot |
+| `R` | Rename scene |
+| `D` | Delete scene |
+| `Esc` | Close browser |
+
 ### File Operations
 
 | Key | Action |
 |-----|--------|
 | `Ctrl+S` | Save project |
 | `Ctrl+O` | Load project |
+| `Ctrl+E` | Scene browser |
 | `Ctrl+N` | Rename current pattern |
 | `Ctrl+K` | Save kit as standalone `.tsk` file |
 | `Ctrl+J` | Load kit into active slot |
