@@ -662,3 +662,7 @@ pub fn categories() -> Vec<&'static str> {
     }
     cats
 }
+
+pub fn preset_by_name(name: &str) -> Option<&'static SynthSoundPreset> {
+    SYNTH_PRESETS.iter().find(|p| p.name == name)
+}

@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::params::EffectParams;
+use crate::presets::pattern_presets;
+use crate::presets::synth_presets;
+use crate::presets::synth_pattern_presets;
 use crate::sequencer::drum_pattern::{
     DrumTrackParams, DrumTrackId, MAX_STEPS, NUM_DRUM_TRACKS, TRACK_IDS,
 };
@@ -15,6 +18,7 @@ use super::synth_pattern::{
 
 pub const NUM_PATTERNS: usize = 10;
 pub const NUM_KITS: usize = 8;
+pub const NUM_SCENES: usize = 16;
 
 // ── Serializable sound params (no mute/solo) ───────────────────────────────
 
@@ -367,6 +371,27 @@ impl SynthPatternData {
 // ── Project ─────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Scene {
+    pub name: String,
+    #[serde(default)]
+    pub drum_pattern: usize,
+    #[serde(default)]
+    pub drum_kit: usize,
+    #[serde(default)]
+    pub synth_a_pattern: usize,
+    #[serde(default)]
+    pub synth_a_kit: usize,
+    #[serde(default)]
+    pub synth_b_pattern: usize,
+    #[serde(default)]
+    pub synth_b_kit: usize,
+    #[serde(default = "default_bpm")]
+    pub bpm: f64,
+    #[serde(default = "default_swing")]
+    pub swing: f32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProjectFile {
     pub textstep: FileHeader,
     #[serde(default)]
@@ -406,6 +431,8 @@ pub struct ProjectFile {
     pub synth_b_patterns: Vec<SynthPatternData>,
     #[serde(default)]
     pub active_synth_b_pattern: usize,
+    #[serde(default)]
+    pub scenes: Vec<Option<Scene>>,
 }
 
 fn default_bpm() -> f64 { 120.0 }
@@ -497,6 +524,68 @@ impl Default for ProjectFile {
             active_synth_b_kit: 0,
             synth_b_patterns,
             active_synth_b_pattern: 0,
+            scenes: Vec::new(),
+        }
+    }
+}
+
+fn pattern_from_preset(name: &str, display_name: &str, bpm: f64) -> PatternData {
+    if let Some(preset) = pattern_presets::preset_by_name(name) {
+        // Mirror 16-step patterns to fill 32 steps: repeat first 4 hex chars into last 4
+        let steps: Vec<String> = preset.steps.iter().map(|s| {
+            if s.len() == 8 && &s[4..] == "0000" {
+                // First half has data, second half empty — repeat first half
+                format!("{}{}", &s[..4], &s[..4])
+            } else {
+                s.to_string()
+            }
+        }).collect();
+        PatternData {
+            name: display_name.to_string(),
+            bpm,
+            steps,
+        }
+    } else {
+        PatternData {
+            name: display_name.to_string(),
+            bpm,
+            steps: vec!["00000000".into(); NUM_DRUM_TRACKS],
+        }
+    }
+}
+
+fn synth_kit_from_preset(name: &str, display_name: &str) -> SynthKitData {
+    if let Some(preset) = synth_presets::preset_by_name(name) {
+        SynthKitData {
+            name: display_name.to_string(),
+            params: preset.params,
+        }
+    } else {
+        SynthKitData {
+            name: display_name.to_string(),
+            ..Default::default()
+        }
+    }
+}
+
+fn synth_pattern_from_preset(preset_name: &str, display_name: &str) -> SynthPatternData {
+    if let Some(preset) = synth_pattern_presets::preset_by_name(preset_name) {
+        SynthPatternData {
+            name: display_name.to_string(),
+            steps: preset.steps.iter().map(|&(note, vel, len)| {
+                SynthStepData {
+                    active: vel > 0,
+                    note,
+                    velocity: vel as f32 / 127.0,
+                    gate: 1.0,
+                    length: len,
+                }
+            }).collect(),
+        }
+    } else {
+        SynthPatternData {
+            name: display_name.to_string(),
+            ..Default::default()
         }
     }
 }
@@ -504,204 +593,69 @@ impl Default for ProjectFile {
 /// Create a demo project with 10 pre-filled genre patterns from classic drum programming.
 pub fn demo_project() -> ProjectFile {
     let patterns = vec![
-        // 1. House (125 BPM)
-        // Kick: four-on-the-floor | Snare: beat 3 | CHH: 16ths except offbeats
-        // OHH: offbeat 16ths + running 16ths on beat 4 | Tom: beat 2 accent
-        PatternData {
-            name: "House".into(),
-            bpm: 125.0,
-            steps: vec![
-                "88880000".into(), // Kick:  0,4,8,12
-                "00800000".into(), // Snare: 8
-                "eee00000".into(), // CHH:   0,1,2,4,5,6,8,9,10
-                "111f0000".into(), // OHH:   3,7,11,12,13,14,15
-                "00000000".into(), // Ride
-                "00000000".into(), // Clap
-                "00000000".into(), // Cowbell
-                "08000000".into(), // Tom:   4
-            ],
-        },
-        // 2. Chicago House (122 BPM)
-        // Kick with upbeat anticipation | Snare on 2&4 | Paired CHH/OHH | Clap on 2&4
-        PatternData {
-            name: "Chicago House".into(),
-            bpm: 122.0,
-            steps: vec![
-                "88820000".into(), // Kick:  0,4,8,14
-                "08080000".into(), // Snare: 4,12
-                "cccc0000".into(), // CHH:   0,1,4,5,8,9,12,13
-                "33100000".into(), // OHH:   2,3,6,7,11
-                "00000000".into(), // Ride
-                "08080000".into(), // Clap:  4,12
-                "00000000".into(), // Cowbell
-                "00000000".into(), // Tom
-            ],
-        },
-        // 3. Brit House (122 BPM)
-        // Syncopated kick | CHH/OHH like House | Clap on beat 3 | Ride accents
-        PatternData {
-            name: "Brit House".into(),
-            bpm: 122.0,
-            steps: vec![
-                "89800000".into(), // Kick:  0,4,7,8
-                "00000000".into(), // Snare
-                "eee00000".into(), // CHH:   0,1,2,4,5,6,8,9,10
-                "111f0000".into(), // OHH:   3,7,11,12,13,14,15
-                "08090000".into(), // Ride:  4,12,15
-                "00800000".into(), // Clap:  8
-                "00000000".into(), // Cowbell
-                "00000000".into(), // Tom
-            ],
-        },
-        // 4. French House (124 BPM)
-        // Funky syncopated kick | Shaker (cowbell) on 8ths | Clap on beat 3
-        PatternData {
-            name: "French House".into(),
-            bpm: 124.0,
-            steps: vec![
-                "98980000".into(), // Kick:    0,3,4,8,11,12
-                "00000000".into(), // Snare
-                "cce00000".into(), // CHH:     0,1,4,5,8,9,10
-                "331f0000".into(), // OHH:     2,3,6,7,11,12,13,14,15
-                "00000000".into(), // Ride
-                "00800000".into(), // Clap:    8
-                "aaa00000".into(), // Cowbell:  0,2,4,6,8,10 (shakers)
-                "00000000".into(), // Tom
-            ],
-        },
-        // 5. Dirty House (126 BPM)
-        // Syncopated kick | Sparse hats | Offbeat claps
-        PatternData {
-            name: "Dirty House".into(),
-            bpm: 126.0,
-            steps: vec![
-                "98880000".into(), // Kick:  0,3,4,8,12
-                "00800000".into(), // Snare: 8
-                "08080000".into(), // CHH:   4,12
-                "02020000".into(), // OHH:   6,14
-                "00000000".into(), // Ride
-                "22200000".into(), // Clap:  2,6,10
-                "00000000".into(), // Cowbell
-                "00000000".into(), // Tom
-            ],
-        },
-        // 6. Trance (138 BPM)
-        // Four-on-the-floor | Dense CHH/OHH pattern | Crash on beat 1
-        PatternData {
-            name: "Trance".into(),
-            bpm: 138.0,
-            steps: vec![
-                "88880000".into(), // Kick:  0,4,8,12
-                "00000000".into(), // Snare
-                "eee00000".into(), // CHH:   0,1,2,4,5,6,8,9,10
-                "111f0000".into(), // OHH:   3,7,11,12,13,14,15
-                "80000000".into(), // Ride:  0 (crash)
-                "00000000".into(), // Clap
-                "00000000".into(), // Cowbell
-                "00000000".into(), // Tom
-            ],
-        },
-        // 7. Techno (130 BPM)
-        // Four-on-the-floor | 8th-note CHH | Offbeat ride | Clap on 2&4
-        PatternData {
-            name: "Techno".into(),
-            bpm: 130.0,
-            steps: vec![
-                "88880000".into(), // Kick:  0,4,8,12
-                "00000000".into(), // Snare
-                "aaaa0000".into(), // CHH:   0,2,4,6,8,10,12,14 (8th notes)
-                "00000000".into(), // OHH
-                "22220000".into(), // Ride:  2,6,10,14 (offbeat 8ths)
-                "08080000".into(), // Clap:  4,12
-                "00000000".into(), // Cowbell
-                "00000000".into(), // Tom
-            ],
-        },
-        // 8. Drum & Bass (170 BPM)
-        // Breakbeat kick pattern | Snare on beat 3 | Dense hats
-        PatternData {
-            name: "Drum & Bass".into(),
-            bpm: 170.0,
-            steps: vec![
-                "80200000".into(), // Kick:  0,10
-                "00800000".into(), // Snare: 8
-                "eee00000".into(), // CHH:   0,1,2,4,5,6,8,9,10
-                "111f0000".into(), // OHH:   3,7,11,12,13,14,15
-                "00000000".into(), // Ride
-                "00000000".into(), // Clap
-                "00000000".into(), // Cowbell
-                "00000000".into(), // Tom
-            ],
-        },
-        // 9. Trap (140 BPM)
-        // Sparse kick with anticipation | Hi-hat rolls | Tom fills
-        PatternData {
-            name: "Trap".into(),
-            bpm: 140.0,
-            steps: vec![
-                "88020000".into(), // Kick:  0,4,14
-                "00800000".into(), // Snare: 8
-                "ffaa0000".into(), // CHH:   0,1,2,3,4,5,6,7,8,10,12,14 (rolls)
-                "00000000".into(), // OHH
-                "00000000".into(), // Ride
-                "00000000".into(), // Clap
-                "00000000".into(), // Cowbell
-                "00210000".into(), // Tom:   10,15
-            ],
-        },
-        // 10. Moombahton (100 BPM)
-        // Dembow-influenced | Snare on 2,3,4 | OHH fills gaps
-        PatternData {
-            name: "Moombahton".into(),
-            bpm: 100.0,
-            steps: vec![
-                "88800000".into(), // Kick:    0,4,8
-                "08880000".into(), // Snare:   4,8,12
-                "eccc0000".into(), // CHH:     0,1,2,4,5,8,9,12,13
-                "13330000".into(), // OHH:     3,6,7,10,11,14,15
-                "80000000".into(), // Ride:    0
-                "00000000".into(), // Clap
-                "00000000".into(), // Cowbell
-                "00000000".into(), // Tom
-            ],
-        },
+        pattern_from_preset("Acid House",      "Acid Techno 138",  138.0),
+        pattern_from_preset("Classic House",   "House 122",        122.0),
+        pattern_from_preset("Deep House",      "Deep House 120",   120.0),
+        pattern_from_preset("Driving Techno",  "Techno 130",       130.0),
+        pattern_from_preset("Lo-Fi Hip Hop",   "Downtempo 85",      85.0),
+        pattern_from_preset("Classic Trance",  "Trance 140",       140.0),
+        pattern_from_preset("Amen Break",      "Drum & Bass 174",  174.0),
+        pattern_from_preset("Electro Funk",    "Electro 128",      128.0),
+        pattern_from_preset("Basic Chain",     "Dub Techno 118",   118.0),
+        pattern_from_preset("Sparse Pulse",    "Ambient 90",        90.0),
     ];
 
     let kits = genre_kits();
 
-    let mut synth_patterns = Vec::with_capacity(NUM_PATTERNS);
-    for i in 0..NUM_PATTERNS {
-        synth_patterns.push(SynthPatternData {
-            name: format!("Synth {}", i + 1),
-            ..Default::default()
-        });
-    }
-    let mut synth_kits = Vec::with_capacity(NUM_KITS);
-    for i in 0..NUM_KITS {
-        synth_kits.push(SynthKitData {
-            name: format!("Synth Kit {}", i + 1),
-            ..Default::default()
-        });
-    }
-    let mut synth_b_patterns = Vec::with_capacity(NUM_PATTERNS);
-    for i in 0..NUM_PATTERNS {
-        synth_b_patterns.push(SynthPatternData {
-            name: format!("Synth B {}", i + 1),
-            ..Default::default()
-        });
-    }
-    let mut synth_b_kits = Vec::with_capacity(NUM_KITS);
-    for i in 0..NUM_KITS {
-        synth_b_kits.push(SynthKitData {
-            name: format!("Synth B Kit {}", i + 1),
-            ..Default::default()
-        });
-    }
+    let synth_patterns = vec![
+        synth_pattern_from_preset("Acid Techno Bass 1",  "Acid Techno Bass"),
+        synth_pattern_from_preset("House Bass 1",        "House Bass"),
+        synth_pattern_from_preset("House Bass 3",        "Deep House Bass"),
+        synth_pattern_from_preset("Techno Bass 1",       "Techno Bass"),
+        synth_pattern_from_preset("Downtempo Bass 1",    "Downtempo Bass"),
+        synth_pattern_from_preset("Trance Bass 1",       "Trance Bass"),
+        synth_pattern_from_preset("Drum & Bass Bass 1",  "DnB Bass"),
+        synth_pattern_from_preset("Electro Bass 1",      "Electro Bass"),
+        synth_pattern_from_preset("Dub Techno Bass 1",   "Dub Techno Bass"),
+        synth_pattern_from_preset("Ambient Bass 1",      "Ambient Bass"),
+    ];
+    let synth_kits = vec![
+        synth_kit_from_preset("Wobble Bass",  "Wobble Bass"),    // Kit 0: Acid Techno
+        synth_kit_from_preset("Acid Bass",    "Acid Bass"),      // Kit 1: House
+        synth_kit_from_preset("Reese Bass",   "Reese Bass"),     // Kit 2: Deep House
+        synth_kit_from_preset("Pulse Bass",   "Pulse Bass"),     // Kit 3: Techno
+        synth_kit_from_preset("Sub Bass",     "Sub Bass"),       // Kit 4: Downtempo, Dub Techno
+        synth_kit_from_preset("FM Bass",      "FM Bass"),        // Kit 5: Trance, Ambient (reuse)
+        synth_kit_from_preset("Growl Bass",   "Growl Bass"),     // Kit 6: DnB
+        synth_kit_from_preset("Rubber Bass",  "Rubber Bass"),    // Kit 7: Electro
+    ];
+    let synth_b_patterns = vec![
+        synth_pattern_from_preset("Acid Techno 1",  "Acid Techno Lead"),
+        synth_pattern_from_preset("House 1",        "House Keys"),
+        synth_pattern_from_preset("House 3",        "Deep House Pad"),
+        synth_pattern_from_preset("Techno 1",       "Techno Lead"),
+        synth_pattern_from_preset("Downtempo 1",    "Downtempo Pad"),
+        synth_pattern_from_preset("Trance 1",       "Trance Lead"),
+        synth_pattern_from_preset("Drum & Bass 1",  "DnB Pluck"),
+        synth_pattern_from_preset("Electro 1",      "Electro Lead"),
+        synth_pattern_from_preset("Dub Techno 1",   "Dub Techno Pad"),
+        synth_pattern_from_preset("Ambient 1",      "Ambient Bells"),
+    ];
+    let synth_b_kits = vec![
+        synth_kit_from_preset("Screamer",       "Screamer"),       // Kit 0: Acid Techno
+        synth_kit_from_preset("Electric Piano", "Electric Piano"), // Kit 1: House
+        synth_kit_from_preset("Shimmer Pad",    "Shimmer Pad"),    // Kit 2: Deep House, Dub Techno
+        synth_kit_from_preset("Saw Lead",       "Saw Lead"),       // Kit 3: Techno
+        synth_kit_from_preset("Warm Pad",       "Warm Pad"),       // Kit 4: Downtempo
+        synth_kit_from_preset("Trance Lead",    "Trance Lead"),    // Kit 5: Trance
+        synth_kit_from_preset("Basic Pluck",    "Basic Pluck"),    // Kit 6: DnB, Ambient
+        synth_kit_from_preset("Square Lead",    "Square Lead"),    // Kit 7: Electro
+    ];
 
     ProjectFile {
         textstep: FileHeader::default(),
         metadata: ProjectMetadata {
-            name: "Demo Beats".to_string(),
+            name: "Demo Song".to_string(),
             ..Default::default()
         },
         kit: DrumKit::default(),
@@ -709,8 +663,8 @@ pub fn demo_project() -> ProjectFile {
         active_kit: 0,
         patterns,
         active_pattern: 0,
-        bpm: 125.0,
-        loop_length: 16,
+        bpm: 138.0,
+        loop_length: 32,
         swing: 0.50,
         effects: EffectParams::default(),
         synth_kits,
@@ -721,6 +675,18 @@ pub fn demo_project() -> ProjectFile {
         active_synth_b_kit: 0,
         synth_b_patterns,
         active_synth_b_pattern: 0,
+        scenes: vec![
+            Some(Scene { name: "bonza".into(),          drum_pattern: 5, drum_kit: 7, synth_a_pattern: 5, synth_a_kit: 5, synth_b_pattern: 4, synth_b_kit: 5, bpm: 140.0, swing: 0.50 }),
+            Some(Scene { name: "Classic House".into(), drum_pattern: 1, drum_kit: 3, synth_a_pattern: 1, synth_a_kit: 1, synth_b_pattern: 1, synth_b_kit: 1, bpm: 122.0, swing: 0.50 }),
+            Some(Scene { name: "Deep House".into(),    drum_pattern: 2, drum_kit: 3, synth_a_pattern: 2, synth_a_kit: 2, synth_b_pattern: 2, synth_b_kit: 2, bpm: 120.0, swing: 0.50 }),
+            Some(Scene { name: "Driving Techno".into(),drum_pattern: 3, drum_kit: 2, synth_a_pattern: 3, synth_a_kit: 3, synth_b_pattern: 3, synth_b_kit: 3, bpm: 130.0, swing: 0.50 }),
+            Some(Scene { name: "Lo-Fi Hip Hop".into(), drum_pattern: 4, drum_kit: 5, synth_a_pattern: 4, synth_a_kit: 4, synth_b_pattern: 4, synth_b_kit: 4, bpm: 85.0,  swing: 0.50 }),
+            Some(Scene { name: "Trance".into(),        drum_pattern: 5, drum_kit: 1, synth_a_pattern: 5, synth_a_kit: 5, synth_b_pattern: 5, synth_b_kit: 5, bpm: 140.0, swing: 0.50 }),
+            Some(Scene { name: "Drum & Bass".into(),   drum_pattern: 6, drum_kit: 6, synth_a_pattern: 6, synth_a_kit: 6, synth_b_pattern: 6, synth_b_kit: 6, bpm: 174.0, swing: 0.50 }),
+            Some(Scene { name: "Electro Funk".into(),  drum_pattern: 7, drum_kit: 6, synth_a_pattern: 7, synth_a_kit: 7, synth_b_pattern: 7, synth_b_kit: 7, bpm: 128.0, swing: 0.50 }),
+            Some(Scene { name: "Dub Techno".into(),    drum_pattern: 8, drum_kit: 2, synth_a_pattern: 8, synth_a_kit: 4, synth_b_pattern: 8, synth_b_kit: 2, bpm: 118.0, swing: 0.50 }),
+            Some(Scene { name: "Ambient".into(),       drum_pattern: 9, drum_kit: 7, synth_a_pattern: 9, synth_a_kit: 5, synth_b_pattern: 9, synth_b_kit: 6, bpm: 90.0,  swing: 0.50 }),
+        ],
     }
 }
 
@@ -934,6 +900,18 @@ impl ProjectFile {
         }
         if self.active_synth_b_pattern >= self.synth_b_patterns.len() {
             self.active_synth_b_pattern = 0;
+        }
+
+        // Normalize scenes
+        for scene in &mut self.scenes {
+            if let Some(s) = scene {
+                if s.drum_pattern >= NUM_PATTERNS { s.drum_pattern = 0; }
+                if s.drum_kit >= NUM_KITS { s.drum_kit = 0; }
+                if s.synth_a_pattern >= NUM_PATTERNS { s.synth_a_pattern = 0; }
+                if s.synth_a_kit >= NUM_KITS { s.synth_a_kit = 0; }
+                if s.synth_b_pattern >= NUM_PATTERNS { s.synth_b_pattern = 0; }
+                if s.synth_b_kit >= NUM_KITS { s.synth_b_kit = 0; }
+            }
         }
     }
 }
@@ -1214,21 +1192,19 @@ mod tests {
         assert_eq!(project.metadata.name, "Old Project");
         assert_eq!(project.synth_patterns[0].name, "Synth 1");
     }
+
+    #[test]
+    fn demo_project_has_scenes() {
+        let proj = demo_project();
+        assert!(!proj.scenes.is_empty());
+        let populated = proj.scenes.iter().filter(|s| s.is_some()).count();
+        assert!(populated >= 5, "Expected at least 5 demo scenes, got {}", populated);
+    }
 }
 
 #[cfg(test)]
 mod demo_tests {
     use super::*;
-
-    #[test]
-    fn demo_house_kick_is_four_on_the_floor() {
-        let proj = demo_project();
-        let steps = hex_to_steps(&proj.patterns[0].steps[0]); // Kick
-        assert!(steps[0]);  // beat 1
-        assert!(steps[4]);  // beat 2
-        assert!(steps[8]);  // beat 3
-        assert!(steps[12]); // beat 4
-    }
 
     #[test]
     fn demo_project_has_10_patterns() {
@@ -1239,8 +1215,43 @@ mod demo_tests {
     #[test]
     fn demo_patterns_have_bpm() {
         let proj = demo_project();
-        assert!((proj.patterns[0].bpm - 125.0).abs() < 0.01); // House
-        assert!((proj.patterns[7].bpm - 170.0).abs() < 0.01); // D&B
+        assert!((proj.patterns[0].bpm - 138.0).abs() < 0.01); // Acid Techno
+        assert!((proj.patterns[6].bpm - 174.0).abs() < 0.01); // D&B
+        assert!((proj.patterns[9].bpm -  90.0).abs() < 0.01); // Ambient
+    }
+
+    #[test]
+    fn demo_patterns_have_nonempty_steps() {
+        let proj = demo_project();
+        for (i, pat) in proj.patterns.iter().enumerate() {
+            let has_notes = pat.steps.iter().any(|s| s != "00000000");
+            assert!(has_notes, "Pattern {} ({}) has no steps", i, pat.name);
+        }
+    }
+
+    #[test]
+    fn demo_synth_kits_have_presets() {
+        let proj = demo_project();
+        assert_eq!(proj.synth_kits.len(), NUM_KITS);
+        assert_eq!(proj.synth_b_kits.len(), NUM_KITS);
+        // Verify kits have named presets (not default names)
+        assert_eq!(proj.synth_kits[0].name, "Wobble Bass");
+        assert_eq!(proj.synth_b_kits[0].name, "Screamer");
+    }
+
+    #[test]
+    fn demo_synth_patterns_have_notes() {
+        let proj = demo_project();
+        assert_eq!(proj.synth_patterns.len(), NUM_PATTERNS);
+        assert_eq!(proj.synth_b_patterns.len(), NUM_PATTERNS);
+        for (i, pat) in proj.synth_patterns.iter().enumerate() {
+            let has_notes = pat.steps.iter().any(|s| s.active);
+            assert!(has_notes, "Synth A pattern {} ({}) has no notes", i, pat.name);
+        }
+        for (i, pat) in proj.synth_b_patterns.iter().enumerate() {
+            let has_notes = pat.steps.iter().any(|s| s.active);
+            assert!(has_notes, "Synth B pattern {} ({}) has no notes", i, pat.name);
+        }
     }
 
     #[test]
@@ -1249,8 +1260,9 @@ mod demo_tests {
         let json = serde_json::to_string(&proj).unwrap();
         let loaded: ProjectFile = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.patterns.len(), 10);
-        assert_eq!(loaded.patterns[0].name, "House");
-        assert!((loaded.patterns[0].bpm - 125.0).abs() < 0.01);
+        assert_eq!(loaded.patterns[0].name, "Acid Techno 138");
+        assert!((loaded.patterns[0].bpm - 138.0).abs() < 0.01);
+        assert_eq!(loaded.synth_kits[0].name, "Wobble Bass");
     }
 
     /// Render all genre kit voices to WAV files for auditioning.
@@ -1334,5 +1346,71 @@ mod demo_tests {
             println!();
         }
         println!("Done! Files in: {}/", output_dir.display());
+    }
+
+    #[test]
+    fn scene_serializes_roundtrip() {
+        let scene = Scene {
+            name: "Test Scene".to_string(),
+            drum_pattern: 2,
+            drum_kit: 3,
+            synth_a_pattern: 4,
+            synth_a_kit: 1,
+            synth_b_pattern: 5,
+            synth_b_kit: 6,
+            bpm: 130.0,
+            swing: 0.55,
+        };
+        let json = serde_json::to_string(&scene).unwrap();
+        let loaded: Scene = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.name, "Test Scene");
+        assert_eq!(loaded.drum_pattern, 2);
+        assert_eq!(loaded.drum_kit, 3);
+        assert_eq!(loaded.synth_a_pattern, 4);
+        assert_eq!(loaded.synth_a_kit, 1);
+        assert_eq!(loaded.synth_b_pattern, 5);
+        assert_eq!(loaded.synth_b_kit, 6);
+        assert!((loaded.bpm - 130.0).abs() < 0.01);
+        assert!((loaded.swing - 0.55).abs() < 0.01);
+    }
+
+    #[test]
+    fn old_project_without_scenes_loads() {
+        let json = r#"{
+            "textstep": {"format_version": 1},
+            "kit": {"tracks": []},
+            "kits": [],
+            "active_kit": 0,
+            "patterns": [],
+            "active_pattern": 0,
+            "active_synth_kit": 0,
+            "active_synth_pattern": 0
+        }"#;
+        let project: ProjectFile = serde_json::from_str(json).unwrap();
+        assert!(project.scenes.is_empty());
+    }
+
+    #[test]
+    fn normalize_clamps_scene_indices() {
+        let mut project = ProjectFile::default();
+        project.scenes = vec![Some(Scene {
+            name: "Bad".to_string(),
+            drum_pattern: 99,
+            drum_kit: 99,
+            synth_a_pattern: 99,
+            synth_a_kit: 99,
+            synth_b_pattern: 99,
+            synth_b_kit: 99,
+            bpm: 130.0,
+            swing: 0.5,
+        })];
+        project.normalize();
+        let s = project.scenes[0].as_ref().unwrap();
+        assert!(s.drum_pattern < NUM_PATTERNS);
+        assert!(s.drum_kit < NUM_KITS);
+        assert!(s.synth_a_pattern < NUM_PATTERNS);
+        assert!(s.synth_a_kit < NUM_KITS);
+        assert!(s.synth_b_pattern < NUM_PATTERNS);
+        assert!(s.synth_b_kit < NUM_KITS);
     }
 }

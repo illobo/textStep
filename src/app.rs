@@ -331,6 +331,12 @@ impl SplashState {
     }
 }
 
+/// Scene browser state.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SceneBrowserState {
+    pub selected: usize,
+}
+
 /// Modal overlay state for save/load dialogs.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ModalState {
@@ -352,6 +358,8 @@ pub enum ModalState {
     PresetBrowser(crate::presets::PresetBrowserState),
     /// Pattern preset browser
     PatternBrowser(crate::presets::PatternBrowserState),
+    /// Scene browser
+    SceneBrowser(SceneBrowserState),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -361,6 +369,7 @@ pub enum ModalAction {
     SaveKit,
     LoadProject,
     LoadKit,
+    RenameScene(usize),
 }
 
 // ── Mouse State ──────────────────────────────────────────────────────────────
@@ -477,10 +486,10 @@ pub struct PanelVisibility {
 impl Default for PanelVisibility {
     fn default() -> Self {
         Self {
-            synth_a_knobs: true,
+            synth_a_knobs: false,  // Knobs collapsed by default
             synth_a_grid: true,
-            synth_b_knobs: false,  // Synth B collapsed by default
-            synth_b_grid: false,
+            synth_b_knobs: false,  // Knobs collapsed by default
+            synth_b_grid: true,
             drum_grid: true,
             drum_knobs: true,
             waveform: true,
@@ -535,6 +544,8 @@ pub struct UiState {
     pub active_pattern: usize,
     /// Queued pattern to switch to at end of loop (None = no change pending)
     pub queued_pattern: Option<usize>,
+    /// Queued scene to apply at drum loop wrap (None = no scene pending)
+    pub queued_scene: Option<usize>,
     /// Current active kit index (0-7)
     pub active_kit: usize,
     /// Modal overlay
@@ -587,6 +598,7 @@ impl Default for UiState {
             trigger_flash: [0; NUM_DRUM_TRACKS],
             active_pattern: 0,
             queued_pattern: None,
+            queued_scene: None,
             active_kit: 0,
             modal: ModalState::None,
             status_msg: None,
@@ -620,63 +632,64 @@ pub struct App {
 impl App {
     pub fn new(tx: Sender<UiToAudio>, rx: Receiver<AudioToUi>, display_buf: Arc<AudioDisplayBuffer>) -> Self {
         let project = project::demo_project();
+
+        // Use first scene if available, otherwise default to index 0
+        let (dp, dk, sap, sak, sbp, sbk, scene_bpm, scene_swing) =
+            if let Some(Some(scene)) = project.scenes.first() {
+                (scene.drum_pattern, scene.drum_kit,
+                 scene.synth_a_pattern, scene.synth_a_kit,
+                 scene.synth_b_pattern, scene.synth_b_kit,
+                 Some(scene.bpm), Some(scene.swing))
+            } else {
+                (0, 0, 0, 0, 0, 0, None, None)
+            };
+
         let mut drum_pattern = DrumPattern::default();
-        project.apply_kit_to_pattern(0, &mut drum_pattern);
-        project.load_pattern_steps(0, &mut drum_pattern);
+        project.apply_kit_to_pattern(dk, &mut drum_pattern);
+        project.load_pattern_steps(dp, &mut drum_pattern);
 
         let mut transport = Transport::default();
-        transport.bpm = project.bpm;
+        transport.bpm = scene_bpm.unwrap_or(project.bpm);
         transport.loop_config.drum_length = project.loop_length;
-        transport.swing = project.swing;
-        // Apply per-pattern BPM if set
-        if let Some(pat) = project.patterns.first() {
-            if pat.bpm > 0.0 {
-                transport.bpm = pat.bpm;
+        transport.swing = scene_swing.unwrap_or(project.swing);
+        // Apply per-pattern BPM if no scene BPM
+        if scene_bpm.is_none() {
+            if let Some(pat) = project.patterns.get(dp) {
+                if pat.bpm > 0.0 {
+                    transport.bpm = pat.bpm;
+                }
             }
         }
 
+        // Load synth patterns and kits from project
         let mut synth_a_pattern = SynthPattern::default();
+        project.load_synth_pattern(sap, &mut synth_a_pattern);
+        project.load_synth_kit(sak, &mut synth_a_pattern);
 
-        // Load startup presets: "Four on the Floor" drum + "Techno 2" synth
-        {
-            use crate::presets::pattern_presets::PATTERN_PRESETS;
-            use crate::presets::synth_pattern_presets::SYNTH_PATTERN_PRESETS;
-            use crate::sequencer::project::hex_to_steps;
-
-            if let Some(preset) = PATTERN_PRESETS.iter().find(|p| p.name == "Four on the Floor") {
-                for (track, hex) in preset.steps.iter().enumerate() {
-                    let src = hex_to_steps(hex);
-                    // Find effective source length, rounded to 8-step boundary
-                    let src_len = src.iter().rposition(|&s| s).map_or(16, |i| {
-                        ((i / 8) + 1) * 8
-                    }).min(crate::sequencer::drum_pattern::MAX_STEPS);
-                    // Tile to fill all 32 steps
-                    for s in 0..crate::sequencer::drum_pattern::MAX_STEPS {
-                        drum_pattern.steps[track][s] = src[s % src_len];
-                    }
-                }
-            }
-
-            if let Some(preset) = SYNTH_PATTERN_PRESETS.iter().find(|p| p.name == "Techno 2") {
-                for (i, &(note, vel, len)) in preset.steps.iter().enumerate() {
-                    synth_a_pattern.steps[i].note = note;
-                    synth_a_pattern.steps[i].velocity = vel;
-                    synth_a_pattern.steps[i].length = len;
-                }
-            }
-        }
+        let mut synth_b_pattern = SynthPattern::default();
+        project.load_synth_b_pattern(sbp, &mut synth_b_pattern);
+        project.load_synth_b_kit(sbk, &mut synth_b_pattern);
 
         // Send initial state to audio thread so it has the pattern from the start
         let _ = tx.send(UiToAudio::SetTransport(transport));
         let _ = tx.send(UiToAudio::SetDrumPattern(drum_pattern.clone()));
         let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::A, synth_a_pattern.clone()));
+        let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::B, synth_b_pattern.clone()));
+
+        let mut ui = UiState::default();
+        ui.active_pattern = dp;
+        ui.active_kit = dk;
+        ui.synth_a.active_pattern = sap;
+        ui.synth_a.active_kit = sak;
+        ui.synth_b.active_pattern = sbp;
+        ui.synth_b.active_kit = sbk;
 
         Self {
-            ui: UiState::default(),
+            ui,
             transport,
             drum_pattern,
             synth_a_pattern,
-            synth_b_pattern: SynthPattern::default(),
+            synth_b_pattern,
             effect_params: EffectParams::default(),
             project,
             project_path: None,
@@ -742,6 +755,9 @@ impl App {
 
                     // Check for queued drum pattern switch at loop wrap (step 0)
                     if drum_step == 0 && global_step > 0 {
+                        if let Some(scene_idx) = self.ui.queued_scene.take() {
+                            self.apply_scene_immediate(scene_idx);
+                        }
                         if let Some(next) = self.ui.queued_pattern.take() {
                             self.switch_pattern(next);
                         }
@@ -751,6 +767,13 @@ impl App {
                     if synth_a_step == 0 && global_step > 0 {
                         if let Some(next) = self.ui.synth_a.queued_pattern.take() {
                             self.switch_synth_pattern(next);
+                        }
+                    }
+
+                    // Check for queued synth B pattern switch at loop wrap
+                    if synth_b_step == 0 && global_step > 0 {
+                        if let Some(next) = self.ui.synth_b.queued_pattern.take() {
+                            self.switch_synth_pattern_for(SynthId::B, next);
                         }
                     }
 
@@ -906,6 +929,79 @@ impl App {
         self.project.active_synth_kit = self.ui.synth_a.active_kit;
     }
 
+    // ── Scene management ────────────────────────────────────────────────
+
+    /// Open the scene browser modal.
+    pub fn open_scene_browser(&mut self) {
+        self.ui.modal = ModalState::SceneBrowser(SceneBrowserState { selected: 0 });
+    }
+
+    /// Save the current state as a scene in the given slot.
+    pub fn save_scene(&mut self, slot: usize) {
+        if slot >= project::NUM_SCENES { return; }
+        let scene = project::Scene {
+            name: format!("Scene {}", slot + 1),
+            drum_pattern: self.ui.active_pattern,
+            drum_kit: self.ui.active_kit,
+            synth_a_pattern: self.ui.synth_a.active_pattern,
+            synth_a_kit: self.ui.synth_a.active_kit,
+            synth_b_pattern: self.ui.synth_b.active_pattern,
+            synth_b_kit: self.ui.synth_b.active_kit,
+            bpm: self.transport.bpm,
+            swing: self.transport.swing,
+        };
+        // Extend scenes vec if needed
+        while self.project.scenes.len() <= slot {
+            self.project.scenes.push(None);
+        }
+        self.project.scenes[slot] = Some(scene);
+    }
+
+    /// Apply a scene immediately (switch all patterns/kits/bpm/swing).
+    pub fn apply_scene_immediate(&mut self, slot: usize) {
+        let scene = match self.project.scenes.get(slot) {
+            Some(Some(s)) => s.clone(),
+            _ => return,
+        };
+        self.store_current_to_project();
+        self.switch_pattern(scene.drum_pattern);
+        self.switch_kit(scene.drum_kit);
+        self.switch_synth_pattern(scene.synth_a_pattern);
+        self.switch_synth_kit(scene.synth_a_kit);
+        self.switch_synth_pattern_for(SynthId::B, scene.synth_b_pattern);
+        self.switch_synth_kit_for(SynthId::B, scene.synth_b_kit);
+        self.transport.bpm = scene.bpm;
+        self.transport.swing = scene.swing;
+        self.send_transport();
+    }
+
+    /// Queue a scene to apply at drum loop wrap. Clears individual queued patterns/kits.
+    pub fn queue_scene(&mut self, slot: usize) {
+        if matches!(self.project.scenes.get(slot), Some(Some(_))) {
+            self.ui.queued_scene = Some(slot);
+            // Clear individual queued changes
+            self.ui.queued_pattern = None;
+            self.ui.synth_a.queued_pattern = None;
+            self.ui.synth_b.queued_pattern = None;
+        }
+    }
+
+    /// Delete a scene from the given slot.
+    pub fn delete_scene(&mut self, slot: usize) {
+        if let Some(entry) = self.project.scenes.get_mut(slot) {
+            *entry = None;
+        }
+    }
+
+    /// Rename a scene in the given slot.
+    pub fn rename_scene(&mut self, slot: usize, name: &str) {
+        if let Some(Some(scene)) = self.project.scenes.get_mut(slot) {
+            scene.name = name.to_string();
+        }
+    }
+
+    // ── Pattern management (continued) ──────────────────────────────────
+
     /// Switch to a different pattern immediately.
     pub fn switch_pattern(&mut self, index: usize) {
         if index >= NUM_PATTERNS { return; }
@@ -991,9 +1087,11 @@ impl App {
                 self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
-                // For synth B, use synth_b_pattern (project B storage is a future task)
+                self.project.save_synth_b_pattern(self.ui.synth_b.active_pattern, &self.synth_b_pattern);
                 self.ui.synth_b.active_pattern = index;
+                self.project.active_synth_b_pattern = index;
                 self.synth_b_pattern = SynthPattern::default();
+                self.project.load_synth_b_pattern(index, &mut self.synth_b_pattern);
                 self.send_synth_pattern(SynthId::B);
             }
         }
@@ -1025,8 +1123,10 @@ impl App {
                 self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
-                // For synth B, just update UI state (project B storage is a future task)
+                self.project.save_synth_b_kit(self.ui.synth_b.active_kit, &self.synth_b_pattern.params);
                 self.ui.synth_b.active_kit = index;
+                self.project.active_synth_b_kit = index;
+                self.project.load_synth_b_kit(index, &mut self.synth_b_pattern);
                 self.send_synth_pattern(SynthId::B);
             }
         }

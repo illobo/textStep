@@ -27,7 +27,7 @@ pub struct LoopConfig {
     pub synth_b_length: u8, // 8, 16, 24, or 32
 }
 
-fn default_synth_b_length() -> u8 { 16 }
+fn default_synth_b_length() -> u8 { 32 }
 
 impl Default for LoopConfig {
     fn default() -> Self {
@@ -35,7 +35,7 @@ impl Default for LoopConfig {
             enabled: false,
             drum_length: 32,
             synth_a_length: 32,
-            synth_b_length: 16,
+            synth_b_length: 32,
         }
     }
 }

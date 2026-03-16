@@ -161,6 +161,9 @@ pub fn render(f: &mut Frame, app: &App) {
         ModalState::PatternBrowser(pb) => {
             render_pattern_browser(f, size, pb);
         }
+        ModalState::SceneBrowser(sb) => {
+            render_scene_browser(f, size, sb, &app.project.scenes);
+        }
         ModalState::None => {}
     }
 }
@@ -600,4 +603,105 @@ fn render_pattern_browser(
 
     let paragraph = Paragraph::new(lines).block(block);
     f.render_widget(paragraph, popup);
+}
+
+/// Render a centered scene browser modal.
+fn render_scene_browser(
+    f: &mut Frame,
+    area: Rect,
+    sb: &crate::app::SceneBrowserState,
+    scenes: &[Option<crate::sequencer::project::Scene>],
+) {
+    use crate::sequencer::project::NUM_SCENES;
+
+    let title = " Scenes ";
+    let max_items = NUM_SCENES.min(14);
+    let w = 64u16.min(area.width.saturating_sub(4));
+    let h = (max_items as u16 + 5).min(area.height.saturating_sub(2));
+    let x = area.x + (area.width.saturating_sub(w)) / 2;
+    let y = area.y + (area.height.saturating_sub(h)) / 2;
+    let popup = Rect::new(x, y, w, h);
+
+    f.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .title(title)
+        .title_style(Style::default().fg(theme::CYAN).add_modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::CYAN));
+
+    let inner_w = (w as usize).saturating_sub(2);
+    let mut lines: Vec<Line> = Vec::new();
+
+    for i in 0..max_items {
+        let is_sel = i == sb.selected;
+        let prefix = if is_sel { "\u{25B6} " } else { "  " };
+
+        let line_text = if let Some(Some(scene)) = scenes.get(i) {
+            format!(
+                "{}{:2}. {:<14} DR:{}-{} {}-{}  SA:{}-{} {}-{}  SB:{}-{} {}-{}",
+                prefix,
+                i + 1,
+                scene_truncate_name(&scene.name, 14),
+                theme::SCENE_PAT_SYMBOL,
+                scene.drum_pattern + 1,
+                theme::SCENE_KIT_SYMBOL,
+                scene.drum_kit + 1,
+                theme::SCENE_PAT_SYMBOL,
+                scene.synth_a_pattern + 1,
+                theme::SCENE_KIT_SYMBOL,
+                scene.synth_a_kit + 1,
+                theme::SCENE_PAT_SYMBOL,
+                scene.synth_b_pattern + 1,
+                theme::SCENE_KIT_SYMBOL,
+                scene.synth_b_kit + 1,
+            )
+        } else {
+            format!("{}{:2}. (empty)", prefix, i + 1)
+        };
+
+        let style = if is_sel {
+            Style::default().fg(Color::Black).bg(theme::CYAN).add_modifier(Modifier::BOLD)
+        } else if scenes.get(i).and_then(|s| s.as_ref()).is_some() {
+            Style::default().fg(theme::TEXT)
+        } else {
+            Style::default().fg(theme::DIM_TEXT)
+        };
+
+        lines.push(Line::from(Span::styled(line_text, style)));
+    }
+
+    // Separator
+    lines.push(Line::from(Span::styled(
+        "\u{2500}".repeat(inner_w),
+        Style::default().fg(Color::Rgb(50, 50, 50)),
+    )));
+
+    // Footer
+    lines.push(Line::from(vec![
+        Span::styled("\u{2191}\u{2193}", Style::default().fg(theme::CYAN)),
+        Span::styled(" nav  ", Style::default().fg(theme::DIM_TEXT)),
+        Span::styled("Return", Style::default().fg(theme::AMBER)),
+        Span::styled(" queue  ", Style::default().fg(theme::DIM_TEXT)),
+        Span::styled("!", Style::default().fg(theme::AMBER)),
+        Span::styled(" now  ", Style::default().fg(theme::DIM_TEXT)),
+        Span::styled("S", Style::default().fg(theme::PINK)),
+        Span::styled(" save  ", Style::default().fg(theme::DIM_TEXT)),
+        Span::styled("R", Style::default().fg(theme::PINK)),
+        Span::styled(" ren  ", Style::default().fg(theme::DIM_TEXT)),
+        Span::styled("D", Style::default().fg(theme::PINK)),
+        Span::styled(" del", Style::default().fg(theme::DIM_TEXT)),
+    ]));
+
+    let paragraph = Paragraph::new(lines).block(block);
+    f.render_widget(paragraph, popup);
+}
+
+/// Truncate a name to max_len characters, adding ".." if truncated.
+fn scene_truncate_name(name: &str, max_len: usize) -> String {
+    if name.len() <= max_len {
+        name.to_string()
+    } else {
+        format!("{}..", &name[..max_len - 2])
+    }
 }
