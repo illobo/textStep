@@ -33,7 +33,7 @@ pub fn start_audio_stream(
         .default_output_config()
         .map_err(|e| format!("failed to get default output config: {e}"))?;
 
-    let sample_rate = config.sample_rate().0 as f64;
+    let sample_rate = config.sample_rate() as f64;
     let channels = config.channels() as usize;
 
     let mut engine = AudioEngine::new(sample_rate, rx, tx, display_buf);

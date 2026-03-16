@@ -28,7 +28,7 @@ const LOGO_WIDTH: u16 = (LETTER_WIDTH * 8 + LETTER_GAP * 7) as u16; // 54
 const LOGO_HEIGHT: u16 = LOGO_ROWS as u16;
 
 const SUBTITLE: &str = "step sequencer + synthesizer";
-const VERSION: &str = "v1.2.4";
+const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 
 // Step pattern displayed below the logo (16 steps)
 const STEP_PATTERN: [bool; 16] = [
