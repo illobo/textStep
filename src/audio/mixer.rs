@@ -15,11 +15,6 @@ pub fn effective_mute(track: usize, muted: &[bool; 8], soloed: &[bool; 8]) -> bo
     }
 }
 
-/// Soft-clipping via `tanh`. Keeps the signal in roughly (-1, 1).
-pub fn soft_clip(x: f32) -> f32 {
-    x.tanh()
-}
-
 /// Per-track saturation: linear below ±1.0 to preserve drum transients,
 /// soft-limiting above ±1.0 to tame extreme peaks.
 #[inline]
@@ -31,34 +26,6 @@ pub fn per_track_saturate(x: f32) -> f32 {
         // Soft limit: asymptotically approaches ±2.0
         let excess = abs_x - 1.0;
         x.signum() * (1.0 + excess / (1.0 + excess))
-    }
-}
-
-/// Micro-delay for stereo decorrelation.
-/// Shifts one channel by a fraction of a millisecond to create spatial width
-/// from mono signals (reverb, delay returns). Mono-compatible at short delays.
-pub struct MicroDelay {
-    buf: Vec<f32>,
-    pos: usize,
-    len: usize,
-}
-
-impl MicroDelay {
-    pub fn new(delay_ms: f64, sample_rate: f64) -> Self {
-        let len = ((delay_ms * 0.001 * sample_rate) as usize).max(1);
-        Self {
-            buf: vec![0.0; len],
-            pos: 0,
-            len,
-        }
-    }
-
-    #[inline]
-    pub fn tick(&mut self, input: f32) -> f32 {
-        let out = self.buf[self.pos];
-        self.buf[self.pos] = input;
-        self.pos = (self.pos + 1) % self.len;
-        out
     }
 }
 
@@ -101,32 +68,6 @@ mod tests {
         // Non-soloed tracks are muted (regardless of their mute flag)
         assert!(effective_mute(1, &muted, &soloed));
         assert!(effective_mute(7, &muted, &soloed));
-    }
-
-    #[test]
-    fn test_soft_clip_passthrough() {
-        // Small values pass through almost unchanged
-        let x = 0.1_f32;
-        let y = soft_clip(x);
-        assert!((y - x).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_soft_clip_limits() {
-        // For large inputs, tanh saturates very close to +/-1
-        assert!(soft_clip(100.0) >= 0.999);
-        assert!(soft_clip(100.0) <= 1.0);
-        assert!(soft_clip(-100.0) <= -0.999);
-        assert!(soft_clip(-100.0) >= -1.0);
-        // For moderate inputs, still bounded
-        assert!(soft_clip(3.0) > 0.99);
-        assert!(soft_clip(3.0) < 1.0);
-    }
-
-    #[test]
-    fn test_soft_clip_symmetry() {
-        let v = 0.7;
-        assert!((soft_clip(v) + soft_clip(-v)).abs() < 1e-6);
     }
 
     #[test]

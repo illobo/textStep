@@ -86,11 +86,6 @@ pub struct SynthInstance {
     pub saturator: TubeSaturator,
     pub reverb: ReverbEffect,
     pub delay: DelayEffect,
-    pub reverb_amount: f32,
-    pub reverb_damping: f32,
-    pub delay_time: f32,
-    pub delay_feedback: f32,
-    pub delay_tone: f32,
 }
 
 impl SynthInstance {
@@ -105,11 +100,6 @@ impl SynthInstance {
             saturator: TubeSaturator::new(sample_rate as f32),
             reverb: ReverbEffect::new(sample_rate),
             delay: DelayEffect::new(),
-            reverb_amount: 0.3,
-            reverb_damping: 0.5,
-            delay_time: 0.0,
-            delay_feedback: 0.4,
-            delay_tone: 0.5,
         }
     }
 }
@@ -277,14 +267,6 @@ impl AudioEngine {
                     // Gate for ~half a step (will be released when gate runs out)
                     let samples_per_step = (self.sample_rate * 60.0 / self.transport.bpm / 4.0) as u32;
                     inst.gate_samples = samples_per_step * 3 / 4;
-                }
-                UiToAudio::ReleaseSynth(synth_id) => {
-                    let inst = match synth_id {
-                        SynthId::A => &mut self.synth_a,
-                        SynthId::B => &mut self.synth_b,
-                    };
-                    inst.voice.release();
-                    inst.gate_samples = 0;
                 }
             }
         }

@@ -15,6 +15,7 @@ use crate::sequencer::synth_pattern::SynthParams;
 pub struct DrumSoundPreset {
     pub name: &'static str,
     pub category: &'static str,
+    #[allow(dead_code)]
     pub voice: DrumTrackId,
     pub params: DrumSoundParams,
 }

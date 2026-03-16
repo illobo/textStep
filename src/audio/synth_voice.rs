@@ -30,7 +30,7 @@ impl Waveform {
 // Tiny xorshift32 noise generator
 // ---------------------------------------------------------------------------
 #[derive(Clone)]
-struct Noise {
+pub struct Noise {
     state: u32,
 }
 
@@ -254,6 +254,7 @@ impl AdsrEnvelope {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_idle(&self) -> bool {
         self.state == AdsrState::Idle
     }
@@ -374,7 +375,6 @@ impl Filter24dB {
 /// Paraphonic synthesizer voice with dual oscillators, sub oscillator,
 /// two ADSR envelopes (amplitude + filter), and a state-variable filter.
 pub struct SynthVoice {
-    sample_rate: f32,
     osc1: Oscillator,
     osc2: Oscillator,
     sub_osc: Oscillator, // always square, 1 oct below osc2
@@ -394,7 +394,6 @@ unsafe impl Send for SynthVoice {}
 impl SynthVoice {
     pub fn new(sample_rate: f32) -> Self {
         Self {
-            sample_rate,
             osc1: Oscillator::new(sample_rate),
             osc2: Oscillator::new(sample_rate),
             sub_osc: Oscillator::new(sample_rate),
@@ -448,6 +447,7 @@ impl SynthVoice {
     }
 
     /// Returns true when all envelopes have finished.
+    #[allow(dead_code)]
     pub fn is_idle(&self) -> bool {
         self.env1.is_idle() && self.env2.is_idle() && self.filter_env.is_idle()
     }

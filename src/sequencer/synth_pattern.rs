@@ -284,91 +284,7 @@ pub enum SynthControlField {
     Mute,
 }
 
-static ALL_FIELDS: [SynthControlField; 38] = [
-    SynthControlField::Osc1Waveform,
-    SynthControlField::Osc1Tune,
-    SynthControlField::Osc1Pwm,
-    SynthControlField::Osc1Level,
-    SynthControlField::Osc2Waveform,
-    SynthControlField::Osc2Tune,
-    SynthControlField::Osc2Pwm,
-    SynthControlField::Osc2Level,
-    SynthControlField::Osc2Detune,
-    SynthControlField::SubLevel,
-    SynthControlField::Env1Attack,
-    SynthControlField::Env1Decay,
-    SynthControlField::Env1Sustain,
-    SynthControlField::Env1Release,
-    SynthControlField::Env2Attack,
-    SynthControlField::Env2Decay,
-    SynthControlField::Env2Sustain,
-    SynthControlField::Env2Release,
-    SynthControlField::FilterType,
-    SynthControlField::FilterCutoff,
-    SynthControlField::FilterResonance,
-    SynthControlField::FilterEnvAmount,
-    SynthControlField::FilterEnvAttack,
-    SynthControlField::FilterEnvDecay,
-    SynthControlField::FilterEnvSustain,
-    SynthControlField::FilterEnvRelease,
-    SynthControlField::LfoWaveform,
-    SynthControlField::LfoDivision,
-    SynthControlField::LfoDepth,
-    SynthControlField::LfoDest,
-    SynthControlField::Lfo2Waveform,
-    SynthControlField::Lfo2Division,
-    SynthControlField::Lfo2Depth,
-    SynthControlField::Lfo2Dest,
-    SynthControlField::Volume,
-    SynthControlField::SendReverb,
-    SynthControlField::SendDelay,
-    SynthControlField::Mute,
-];
-
 impl SynthControlField {
-    pub fn label(&self) -> &str {
-        match self {
-            Self::Osc1Waveform => "WV",
-            Self::Osc1Tune => "TN",
-            Self::Osc1Pwm => "PW",
-            Self::Osc1Level => "LV",
-            Self::Osc2Waveform => "WV",
-            Self::Osc2Tune => "TN",
-            Self::Osc2Pwm => "PW",
-            Self::Osc2Level => "LV",
-            Self::Osc2Detune => "DT",
-            Self::SubLevel => "SB",
-            Self::Env1Attack => "A",
-            Self::Env1Decay => "D",
-            Self::Env1Sustain => "S",
-            Self::Env1Release => "R",
-            Self::Env2Attack => "A",
-            Self::Env2Decay => "D",
-            Self::Env2Sustain => "S",
-            Self::Env2Release => "R",
-            Self::FilterType => "FT",
-            Self::FilterCutoff => "FR",
-            Self::FilterResonance => "RS",
-            Self::FilterEnvAmount => "EA",
-            Self::FilterEnvAttack => "A",
-            Self::FilterEnvDecay => "D",
-            Self::FilterEnvSustain => "S",
-            Self::FilterEnvRelease => "R",
-            Self::LfoWaveform => "WV",
-            Self::LfoDivision => "DV",
-            Self::LfoDepth => "DP",
-            Self::LfoDest => "DS",
-            Self::Lfo2Waveform => "WV",
-            Self::Lfo2Division => "DV",
-            Self::Lfo2Depth => "DP",
-            Self::Lfo2Dest => "DS",
-            Self::Volume => "VL",
-            Self::SendReverb => "RV",
-            Self::SendDelay => "DL",
-            Self::Mute => "M",
-        }
-    }
-
     pub fn full_label(&self) -> &str {
         match self {
             Self::Osc1Waveform => "Wave",
@@ -499,35 +415,10 @@ impl SynthControlField {
         }
     }
 
-    pub fn all() -> &'static [SynthControlField] {
-        &ALL_FIELDS
-    }
-
     pub fn is_enum(&self) -> bool {
         matches!(self, Self::Osc1Waveform | Self::Osc2Waveform | Self::FilterType
             | Self::LfoWaveform | Self::LfoDivision | Self::LfoDest
             | Self::Lfo2Waveform | Self::Lfo2Division | Self::Lfo2Dest)
-    }
-}
-
-// --- Helper ---
-
-pub fn filter_type_name(t: u8) -> &'static str {
-    match t {
-        0 => "LP",
-        1 => "HP",
-        2 => "BP",
-        _ => "??",
-    }
-}
-
-pub fn waveform_name(w: u8) -> &'static str {
-    match w {
-        0 => "Sqr",
-        1 => "Saw",
-        2 => "Sin",
-        3 => "Nse",
-        _ => "???",
     }
 }
 
