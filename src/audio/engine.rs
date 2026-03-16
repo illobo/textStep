@@ -7,8 +7,8 @@ use crossbeam_channel::{Receiver, Sender};
 use crate::audio::clock::SequencerClock;
 use crate::audio::display_buffer::AudioDisplayBuffer;
 use crate::audio::drum_voice::{create_drum_voices, DrumVoiceDsp};
-use crate::audio::effects::{DelayEffect, GlueCompressor, ReverbEffect, TubeSaturator};
-use crate::audio::mixer::{effective_mute, per_track_saturate, soft_clip};
+use crate::audio::effects::{DelayEffect, FdnReverb, GlueCompressor, LookaheadLimiter, ReverbEffect, SidechainEnvelope, TubeSaturator};
+use crate::audio::mixer::{effective_mute, per_track_saturate};
 use crate::audio::synth_voice::SynthVoice;
 use crate::messages::{AudioToUi, SynthId, UiToAudio};
 use crate::params::EffectParams;
@@ -132,12 +132,16 @@ pub struct AudioEngine {
     synth_b: SynthInstance,
 
     // Send effects (drum bus)
-    drum_reverb: ReverbEffect,
+    drum_reverb: FdnReverb,
     drum_delay: DelayEffect,
     compressor: GlueCompressor,
     crush_compressor: GlueCompressor, // parallel "New York" compression
     drum_saturator: TubeSaturator,
     effect_params: EffectParams,
+
+    // Master bus
+    limiter: LookaheadLimiter,
+    sidechain: SidechainEnvelope,
 
     // Display buffer (shared with UI)
     display_buf: Arc<AudioDisplayBuffer>,
@@ -151,7 +155,7 @@ pub struct AudioEngine {
 impl AudioEngine {
     pub fn new(sample_rate: f64, rx: Receiver<UiToAudio>, tx: Sender<AudioToUi>, display_buf: Arc<AudioDisplayBuffer>) -> Self {
         let effect_params = EffectParams::default();
-        let mut drum_reverb = ReverbEffect::new(sample_rate);
+        let mut drum_reverb = FdnReverb::new(sample_rate);
         let mut drum_delay = DelayEffect::new();
         drum_reverb.set_params(effect_params.reverb_amount, effect_params.reverb_damping);
         drum_delay.set_params(
@@ -183,6 +187,8 @@ impl AudioEngine {
             crush_compressor,
             drum_saturator,
             effect_params,
+            limiter: LookaheadLimiter::new(sample_rate),
+            sidechain: SidechainEnvelope::new(sample_rate),
             display_buf,
             peak_tracker: 0.0,
             rx,
@@ -432,9 +438,14 @@ impl AudioEngine {
             let mut drum_dry_mono: f32 = 0.0;
             let mut reverb_send: f32 = 0.0;
             let mut delay_send: f32 = 0.0;
+            let mut kick_sample: f32 = 0.0;
 
             for track in 0..NUM_DRUM_TRACKS {
                 let sample = self.drum_voices[track].tick();
+                // Capture kick for sidechain (track 0, before mute check)
+                if track == 0 {
+                    kick_sample = sample;
+                }
                 if !effective_mute(track, &muted, &soloed) {
                     let p = &self.drum_pattern.params[track];
                     let voiced = per_track_saturate(sample) * p.volume;
@@ -499,8 +510,7 @@ impl AudioEngine {
                 let mut synth_dry: f32 = 0.0;
                 if !self.synth_a.pattern.params.mute {
                     synth_dry = synth_sample;
-                    reverb_send += synth_sample * self.synth_a.pattern.params.send_reverb;
-                    delay_send += synth_sample * self.synth_a.pattern.params.send_delay;
+                    // Synth uses its own reverb/delay instances — don't also feed drum bus
                 }
                 let sa_sat = self.synth_a.saturator.tick(synth_dry);
                 let sa_reverb = self.synth_a.reverb.tick(sa_sat * self.synth_a.pattern.params.send_reverb);
@@ -548,8 +558,7 @@ impl AudioEngine {
                 let mut synth_dry: f32 = 0.0;
                 if !self.synth_b.pattern.params.mute {
                     synth_dry = synth_sample;
-                    reverb_send += synth_sample * self.synth_b.pattern.params.send_reverb;
-                    delay_send += synth_sample * self.synth_b.pattern.params.send_delay;
+                    // Synth uses its own reverb/delay instances — don't also feed drum bus
                 }
                 let sb_sat = self.synth_b.saturator.tick(synth_dry);
                 let sb_reverb = self.synth_b.reverb.tick(sb_sat * self.synth_b.pattern.params.send_reverb);
@@ -557,33 +566,54 @@ impl AudioEngine {
                 sb_sat + sb_reverb + sb_delay
             };
 
-            // Process send effects (drum bus)
-            let reverb_out = self.drum_reverb.tick(reverb_send);
+            // Process send effects (drum bus) — FDN reverb with native stereo output
+            let (reverb_l, reverb_r) = self.drum_reverb.tick_stereo(reverb_send);
             let delay_out = self.drum_delay.tick(delay_send);
+
+            // Sidechain: kick ducks synths for separation (depth from effect params)
+            self.sidechain.tick(kick_sample);
+            let duck = if self.effect_params.sidechain_amount > 0.001 {
+                self.sidechain.duck_gain(self.effect_params.sidechain_amount)
+            } else {
+                1.0
+            };
 
             // Apply crossfader gain: center (0.5) = both full, extremes fade one out
             let xf = self.crossfader;
             let gain_a = if xf <= 0.5 { 1.0 } else { 2.0 * (1.0 - xf) };
             let gain_b = if xf >= 0.5 { 1.0 } else { 2.0 * xf };
 
-            // Mix: per-instrument saturated signals + wet effects → headroom → master volume → compressor → clip
-            // Both synths centered (mono to both channels)
-            let mono_wet = synth_a_out * gain_a + synth_b_out * gain_b + reverb_out + delay_out;
-            let mixed_l = (drum_sat_l + mono_wet) * 0.5 * self.master_volume;
-            let mixed_r = (drum_sat_r + mono_wet) * 0.5 * self.master_volume;
+            // Stereo mix: synths panned slightly to opposite sides, ducked by kick
+            // Synth A slightly left (pan ~0.38), Synth B slightly right (pan ~0.62)
+            // Precomputed equal-power gains: cos/sin(0.38 * π/2) ≈ 0.826/0.564
+            let sa_scaled = synth_a_out * gain_a * duck;
+            let sb_scaled = synth_b_out * gain_b * duck;
+            let synth_l = sa_scaled * 0.826 + sb_scaled * 0.564;
+            let synth_r = sa_scaled * 0.564 + sb_scaled * 0.826;
+
+            // Stereo wet bus: FDN reverb is natively stereo, delay decorrelated via reverb spread
+            let wet_l = synth_l + reverb_l + delay_out;
+            let wet_r = synth_r + reverb_r + delay_out;
+
+            let mixed_l = (drum_sat_l + wet_l) * 0.7 * self.master_volume;
+            let mixed_r = (drum_sat_r + wet_r) * 0.7 * self.master_volume;
             // Linked stereo compression with parallel "crush" bus
             let mono = (mixed_l + mixed_r) * 0.5;
             let compressed = self.compressor.tick(mono);
             let comp_gain = if mono.abs() > 1e-10 { compressed / mono } else { 1.0 };
 
-            // Parallel "crush" compression: heavily compressed copy blended at 30%
+            // Parallel "crush" compression: only active when compressor knob is engaged.
             // Adds body and sustain without killing transients (New York compression)
             let crush = self.crush_compressor.tick(mono);
+            let crush_blend = if self.effect_params.compressor_amount > 0.001 { 0.3 } else { 0.0 };
             let crush_gain = if mono.abs() > 1e-10 { crush / mono } else { 1.0 };
-            let parallel_gain = comp_gain + crush_gain * 0.3;
+            let parallel_gain = comp_gain + crush_gain * crush_blend;
 
-            let out_l = soft_clip(mixed_l * parallel_gain);
-            let out_r = soft_clip(mixed_r * parallel_gain);
+            // Lookahead limiter replaces crude tanh soft_clip — preserves transients
+            let (out_l, out_r) = self.limiter.tick_stereo(
+                mixed_l * parallel_gain,
+                mixed_r * parallel_gain,
+            );
 
             frame[0] = out_l;
             if frame.len() > 1 {

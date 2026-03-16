@@ -340,8 +340,8 @@ impl DrumVoiceDsp for KickVoice {
         self.click_svf.set_freq(click_filter_freq, 0.18, self.sr);
         self.click_svf.reset();
 
-        // Sub-oscillator: one octave below the body fundamental
-        self.sub_freq = self.freq_base * 0.5;
+        // Sub-oscillator: a fourth below the body fundamental (~41 Hz at default)
+        self.sub_freq = self.freq_base * 0.75;
         self.sub_phase = 0.0;
         self.sub_env = 0.35; // subtle reinforcement, not overwhelming
         // Decay tracks body but slightly shorter — support without boom
@@ -370,9 +370,11 @@ impl DrumVoiceDsp for KickVoice {
             self.phase -= 1.0;
         }
         let sine = (self.phase * std::f64::consts::TAU).sin() as f32;
+        // 2nd harmonic for mid-range presence on smaller speakers
+        let harmonic2 = (self.phase * 2.0 * std::f64::consts::TAU).sin() as f32 * 0.25;
 
         // Body LP filter + envelope
-        let body = self.body_lp.tick(sine) * self.body_env;
+        let body = self.body_lp.tick(sine + harmonic2) * self.body_env;
         self.body_env *= self.body_decay;
 
         // ── Path B: click impulse ──
@@ -390,7 +392,7 @@ impl DrumVoiceDsp for KickVoice {
         let click = self.click_svf.lp() * self.click_env * self.click_level;
         self.click_env *= self.click_decay;
 
-        // ── Path C: sub-oscillator (one octave below for chest-hitting low-end) ──
+        // ── Path C: sub-oscillator (a fourth below for chest-hitting low-end) ──
 
         self.sub_phase += self.sub_freq as f64 / self.sr;
         if self.sub_phase >= 1.0 {
@@ -404,8 +406,8 @@ impl DrumVoiceDsp for KickVoice {
         let raw = body + click + sub;
         let driven = apply_drive(raw, self.drive);
 
-        // Deactivate when both envelopes are spent
-        if self.body_env < 1e-6 && self.click_env < 1e-6 {
+        // Deactivate when all envelopes are spent
+        if self.body_env < 1e-6 && self.click_env < 1e-6 && self.sub_env < 1e-6 {
             self.active = false;
         }
 

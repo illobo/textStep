@@ -85,8 +85,11 @@ impl OnePoleLP {
 // ---------------------------------------------------------------------------
 // PolyBLEP anti-aliasing correction for discontinuities
 // ---------------------------------------------------------------------------
+
+/// PolyBLEP correction: smooths discontinuities in saw/square to reduce aliasing.
+/// t = current phase (0..1), dt = phase increment per sample.
 #[inline]
-fn poly_blep(t: f32, dt: f32) -> f32 {
+fn poly_blep(t: f64, dt: f64) -> f64 {
     if t < dt {
         let t = t / dt;
         2.0 * t - t * t - 1.0
@@ -134,10 +137,10 @@ impl Oscillator {
                 let pw = 0.05 + param * 0.9;
                 let mut out = if self.phase < pw { 1.0 } else { -1.0 };
                 // PolyBLEP correction at rising edge (phase=0) and falling edge (phase=pw)
-                out += poly_blep(self.phase, inc);
+                out += poly_blep(self.phase as f64, inc as f64) as f32;
                 let mut t = self.phase - pw;
                 if t < 0.0 { t += 1.0; }
-                out -= poly_blep(t, inc);
+                out -= poly_blep(t as f64, inc as f64) as f32;
                 self.phase += inc;
                 if self.phase >= 1.0 {
                     self.phase -= 1.0;
@@ -147,7 +150,7 @@ impl Oscillator {
             Waveform::Saw => {
                 // Primary saw with PolyBLEP anti-aliasing
                 let mut saw1 = 2.0 * self.phase - 1.0;
-                saw1 -= poly_blep(self.phase, inc);
+                saw1 -= poly_blep(self.phase as f64, inc as f64) as f32;
                 self.phase += inc;
                 if self.phase >= 1.0 {
                     self.phase -= 1.0;
@@ -160,7 +163,7 @@ impl Oscillator {
                     let detune = param * 0.02; // up to ~1 semitone
                     let inc2 = freq_hz * (1.0 + detune) / self.sample_rate;
                     let mut saw2 = 2.0 * self.phase2 - 1.0;
-                    saw2 -= poly_blep(self.phase2, inc2);
+                    saw2 -= poly_blep(self.phase2 as f64, inc2 as f64) as f32;
                     self.phase2 += inc2;
                     if self.phase2 >= 1.0 {
                         self.phase2 -= 1.0;
@@ -501,5 +504,27 @@ impl SynthVoice {
         let output = self.filter.tick(mix, cutoff_mod, params.filter_resonance, params.filter_type);
 
         output * params.volume
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_poly_blep_reduces_aliasing() {
+        // A naive saw at high frequency has more energy in upper harmonics (aliasing)
+        // PolyBLEP should reduce this
+        let phase = 0.001; // just after transition
+        let dt = 0.01; // ~4800 Hz at 48kHz
+        let correction = poly_blep(phase, dt);
+        assert!(correction.abs() > 0.0, "PolyBLEP should correct near transitions");
+
+        // Far from transition, no correction
+        let correction_far = poly_blep(0.5, dt);
+        assert!(correction_far.abs() < 1e-10, "PolyBLEP should be zero far from transitions");
     }
 }

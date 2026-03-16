@@ -525,6 +525,7 @@ pub struct TubeSaturator {
     lp_coeff: f32,    // LP filter coefficient
     dc_block: f32,    // DC blocker state
     sample_rate: f32,
+    oversampler: Oversampler2x, // 2× oversampling for clean harmonics
 }
 
 impl TubeSaturator {
@@ -537,6 +538,7 @@ impl TubeSaturator {
             lp_coeff: 0.3,
             dc_block: 0.0,
             sample_rate,
+            oversampler: Oversampler2x::new(),
         }
     }
 
@@ -566,24 +568,16 @@ impl TubeSaturator {
         let gain = 1.0 + self.drive * 1.5;
         let x = (input + self.bias_smooth) * gain;
 
-        // Asymmetric waveshaping — gentle curves that stay musical
-        // Positive half: soft saturation via x / (1 + |x|) — gentler than tanh
-        // Negative half: slightly more compressed via tanh
-        // The asymmetry between them creates even harmonics
-        let shaped = if x >= 0.0 {
-            x / (1.0 + x.abs())
-        } else {
-            (x * 0.8).tanh() / (0.8_f32).tanh()
-        };
-
-        // Normalize back to roughly input level
-        let normalized = shaped / (1.0_f32 / (1.0 + 1.0_f32)); // ≈ shaped * 2.0
-        let _ = normalized; // using a simpler approach below
-
-        // Simple gain compensation: at gain=2.5, tanh(2.5)≈0.99, so output ≈ 1.0
-        // We want output ≈ input level, so divide by the transfer function at gain level
+        // Asymmetric waveshaping at 2× sample rate for clean harmonics
         let ref_level = if gain > 1.0 { gain / (1.0 + gain) } else { 1.0 };
-        let compensated = shaped / ref_level;
+        let compensated = self.oversampler.tick(x, |s| {
+            let shaped = if s >= 0.0 {
+                s / (1.0 + s.abs())
+            } else {
+                (s * 0.8).tanh() / (0.8_f32).tanh()
+            };
+            shaped / ref_level
+        });
 
         // Output transformer: one-pole LP to roll off harsh upper harmonics
         self.lp_state += self.lp_coeff * (compensated - self.lp_state);
@@ -631,6 +625,326 @@ fn db_to_linear(db: f32) -> f32 {
 #[inline]
 fn linear_to_db(linear: f32) -> f32 {
     20.0 * linear.log10()
+}
+
+// ---------------------------------------------------------------------------
+// FdnReverb: 8-delay-line Feedback Delay Network
+// ---------------------------------------------------------------------------
+
+/// 8-delay-line Feedback Delay Network reverb.
+/// Much denser and richer than Schroeder: Householder feedback matrix preserves energy,
+/// prime-length delays prevent flutter echoes, per-line damping controls brightness.
+pub struct FdnReverb {
+    delays: Vec<f32>,       // single flat buffer for all 8 delay lines
+    lengths: [usize; 8],
+    offsets: [usize; 8],
+    positions: [usize; 8],
+    damping_state: [f32; 8],
+    damping: f32,
+    feedback: f32,
+    wet: f32,
+    // Early reflections (same as before)
+    er_buf: Vec<f32>,
+    er_buf_size: usize,
+    er_pos: usize,
+    er_taps: [usize; 5],
+    er_gains: [f32; 5],
+    er_wet: f32,
+}
+
+// Prime delay lengths tuned for 48kHz (~21-56ms range)
+const FDN_BASE_LENGTHS: [usize; 8] = [1009, 1201, 1427, 1609, 1847, 2087, 2311, 2707];
+
+impl FdnReverb {
+    pub fn new(sample_rate: f64) -> Self {
+        let scale = sample_rate / 48000.0;
+        let mut lengths = [0usize; 8];
+        let mut offsets = [0usize; 8];
+        let mut offset = 0;
+        for i in 0..8 {
+            lengths[i] = (FDN_BASE_LENGTHS[i] as f64 * scale) as usize;
+            offsets[i] = offset;
+            offset += lengths[i];
+        }
+        let total = offset;
+
+        // Early reflections: 5 taps at 3ms, 7ms, 11ms, 17ms, 23ms
+        let er_delays_ms: [f64; 5] = [3.0, 7.0, 11.0, 17.0, 23.0];
+        let er_buf_size = (sample_rate * 0.03) as usize + 1;
+        let er_taps: [usize; 5] = [
+            (er_delays_ms[0] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[1] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[2] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[3] * 0.001 * sample_rate) as usize,
+            (er_delays_ms[4] * 0.001 * sample_rate) as usize,
+        ];
+        let er_gains: [f32; 5] = [0.35, 0.25, 0.20, 0.15, 0.10];
+
+        Self {
+            delays: vec![0.0; total],
+            lengths,
+            offsets,
+            positions: [0; 8],
+            damping_state: [0.0; 8],
+            damping: 0.25,
+            feedback: 0.7,
+            wet: 0.3,
+            er_buf: vec![0.0; er_buf_size],
+            er_buf_size,
+            er_pos: 0,
+            er_taps,
+            er_gains,
+            er_wet: 0.3,
+        }
+    }
+
+    pub fn set_params(&mut self, amount: f32, damping: f32) {
+        self.feedback = (0.40 + amount * 0.45).min(0.85);
+        self.damping = damping;
+        self.wet = amount * 0.6;
+        self.er_wet = amount * 0.4;
+    }
+
+    /// Process one mono sample, return mono wet output.
+    pub fn tick(&mut self, input: f32) -> f32 {
+        // Early reflections
+        let mut er_sum = 0.0_f32;
+        for i in 0..5 {
+            let tap_pos = if self.er_pos >= self.er_taps[i] {
+                self.er_pos - self.er_taps[i]
+            } else {
+                self.er_buf_size - (self.er_taps[i] - self.er_pos)
+            };
+            er_sum += self.er_buf[tap_pos] * self.er_gains[i];
+        }
+        self.er_buf[self.er_pos] = input;
+        self.er_pos = (self.er_pos + 1) % self.er_buf_size;
+
+        // Read all 8 delay lines and apply damping
+        let mut read_vals = [0.0_f32; 8];
+        for i in 0..8 {
+            let pos = self.positions[i];
+            let raw = self.delays[self.offsets[i] + pos];
+            // One-pole LP damping
+            self.damping_state[i] = raw * (1.0 - self.damping) + self.damping_state[i] * self.damping;
+            read_vals[i] = self.damping_state[i];
+        }
+
+        // Householder feedback matrix: H = I - (2/N) * ones
+        // For N=8: diagonal = 0.75, off-diagonal = -0.25
+        // mixed[i] = 0.75 * read[i] - 0.25 * sum(read[j!=i])
+        // Equivalently: mixed[i] = read[i] - 0.25 * sum(all read)
+        let sum: f32 = read_vals.iter().sum();
+        let mut mixed = [0.0_f32; 8];
+        for i in 0..8 {
+            mixed[i] = read_vals[i] - 0.25 * sum;
+        }
+
+        // Write back: input + feedback * mixed
+        for i in 0..8 {
+            let pos = self.positions[i];
+            self.delays[self.offsets[i] + pos] = input + mixed[i] * self.feedback;
+            self.positions[i] = (pos + 1) % self.lengths[i];
+        }
+
+        // Output: sum of delay reads normalized
+        let out = sum * 0.125; // 1/8
+        out * self.wet + er_sum * self.er_wet
+    }
+
+    /// Stereo output: odd delay lines -> left, even -> right for decorrelation.
+    pub fn tick_stereo(&mut self, input: f32) -> (f32, f32) {
+        // Early reflections (shared mono)
+        let mut er_sum = 0.0_f32;
+        for i in 0..5 {
+            let tap_pos = if self.er_pos >= self.er_taps[i] {
+                self.er_pos - self.er_taps[i]
+            } else {
+                self.er_buf_size - (self.er_taps[i] - self.er_pos)
+            };
+            er_sum += self.er_buf[tap_pos] * self.er_gains[i];
+        }
+        self.er_buf[self.er_pos] = input;
+        self.er_pos = (self.er_pos + 1) % self.er_buf_size;
+
+        let mut read_vals = [0.0_f32; 8];
+        for i in 0..8 {
+            let pos = self.positions[i];
+            let raw = self.delays[self.offsets[i] + pos];
+            self.damping_state[i] = raw * (1.0 - self.damping) + self.damping_state[i] * self.damping;
+            read_vals[i] = self.damping_state[i];
+        }
+
+        let sum: f32 = read_vals.iter().sum();
+        let mut mixed = [0.0_f32; 8];
+        for i in 0..8 {
+            mixed[i] = read_vals[i] - 0.25 * sum;
+        }
+
+        for i in 0..8 {
+            let pos = self.positions[i];
+            self.delays[self.offsets[i] + pos] = input + mixed[i] * self.feedback;
+            self.positions[i] = (pos + 1) % self.lengths[i];
+        }
+
+        // Split odd/even for stereo
+        let left = (read_vals[0] + read_vals[2] + read_vals[4] + read_vals[6]) * 0.25;
+        let right = (read_vals[1] + read_vals[3] + read_vals[5] + read_vals[7]) * 0.25;
+        let er_l = er_sum * 0.6;
+        let er_r = er_sum * 0.4;
+
+        (left * self.wet + er_l * self.er_wet, right * self.wet + er_r * self.er_wet)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Oversampler2x: 2x oversampler for clean nonlinear processing
+// ---------------------------------------------------------------------------
+
+/// 2x oversampler for clean nonlinear processing.
+/// Processes saturation/distortion at double sample rate to reduce aliasing.
+pub struct Oversampler2x {
+    prev_in: f32,
+}
+
+impl Oversampler2x {
+    pub fn new() -> Self {
+        Self { prev_in: 0.0 }
+    }
+
+    /// Process one sample through a nonlinear function at 2x rate.
+    /// Uses linear interpolation for upsampling, averaging for downsampling.
+    #[inline]
+    pub fn tick<F: FnMut(f32) -> f32>(&mut self, input: f32, mut f: F) -> f32 {
+        let mid = (self.prev_in + input) * 0.5;
+        self.prev_in = input;
+        let y0 = f(mid);
+        let y1 = f(input);
+        (y0 + y1) * 0.5
+    }
+}
+
+// ---------------------------------------------------------------------------
+// LookaheadLimiter: true peak limiter with lookahead delay
+// ---------------------------------------------------------------------------
+
+/// True peak limiter with lookahead delay.
+/// Sees peaks before they arrive and applies smooth gain reduction,
+/// preserving transient shape while preventing clipping.
+pub struct LookaheadLimiter {
+    buf_l: Vec<f32>,
+    buf_r: Vec<f32>,
+    pos: usize,
+    len: usize,
+    threshold: f32,
+    gain: f32,
+    attack_coeff: f32,
+    release_coeff: f32,
+}
+
+impl LookaheadLimiter {
+    pub fn new(sample_rate: f64) -> Self {
+        let len = (sample_rate * 0.001) as usize; // 1ms lookahead
+        let len = len.max(1);
+
+        // Attack: ~0.1ms (catches transients)
+        let attack_coeff = (-1.0 / (0.0001 * sample_rate)).exp() as f32;
+        // Release: ~50ms (smooth recovery)
+        let release_coeff = (-1.0 / (0.05 * sample_rate)).exp() as f32;
+
+        Self {
+            buf_l: vec![0.0; len],
+            buf_r: vec![0.0; len],
+            pos: 0,
+            len,
+            threshold: 0.95,
+            gain: 1.0,
+            attack_coeff,
+            release_coeff,
+        }
+    }
+
+    /// Process one stereo frame. Returns limited (l, r).
+    pub fn tick_stereo(&mut self, in_l: f32, in_r: f32) -> (f32, f32) {
+        // Find peak in lookahead window (scan full buffer)
+        let mut peak = 0.0_f32;
+        for i in 0..self.len {
+            peak = peak.max(self.buf_l[i].abs()).max(self.buf_r[i].abs());
+        }
+        // Also consider incoming samples
+        peak = peak.max(in_l.abs()).max(in_r.abs());
+
+        // Compute target gain
+        let target_gain = if peak > self.threshold {
+            self.threshold / peak
+        } else {
+            1.0
+        };
+
+        // Smooth gain with separate attack/release
+        if target_gain < self.gain {
+            self.gain = self.attack_coeff * self.gain + (1.0 - self.attack_coeff) * target_gain;
+        } else {
+            self.gain = self.release_coeff * self.gain + (1.0 - self.release_coeff) * target_gain;
+        }
+
+        // Read delayed output
+        let out_l = self.buf_l[self.pos] * self.gain;
+        let out_r = self.buf_r[self.pos] * self.gain;
+
+        // Write new input
+        self.buf_l[self.pos] = in_l;
+        self.buf_r[self.pos] = in_r;
+        self.pos = (self.pos + 1) % self.len;
+
+        (out_l, out_r)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// SidechainEnvelope: envelope follower for sidechain compression
+// ---------------------------------------------------------------------------
+
+/// Envelope follower for sidechain compression.
+/// Tracks the amplitude of a trigger signal (e.g. kick drum) and produces
+/// a gain reduction signal for ducking other instruments.
+pub struct SidechainEnvelope {
+    level: f32,
+    attack_coeff: f32,
+    release_coeff: f32,
+}
+
+impl SidechainEnvelope {
+    pub fn new(sample_rate: f64) -> Self {
+        // Attack: ~1ms (fast catch of kick transient)
+        let attack_coeff = (-1.0 / (0.001 * sample_rate)).exp() as f32;
+        // Release: ~80ms (natural duck and recovery)
+        let release_coeff = (-1.0 / (0.08 * sample_rate)).exp() as f32;
+
+        Self {
+            level: 0.0,
+            attack_coeff,
+            release_coeff,
+        }
+    }
+
+    /// Feed a sidechain signal sample, returns current envelope level (0..~1).
+    #[inline]
+    pub fn tick(&mut self, input: f32) -> f32 {
+        let abs = input.abs();
+        if abs > self.level {
+            self.level = self.attack_coeff * self.level + (1.0 - self.attack_coeff) * abs;
+        } else {
+            self.level = self.release_coeff * self.level + (1.0 - self.release_coeff) * abs;
+        }
+        self.level
+    }
+
+    /// Compute the gain multiplier for ducking. depth = how much to duck (0.5 = ~6dB).
+    #[inline]
+    pub fn duck_gain(&self, depth: f32) -> f32 {
+        (1.0 - self.level * depth).max(0.0)
+    }
 }
 
 #[cfg(test)]
@@ -727,6 +1041,82 @@ mod tests {
         let v1 = p.next();
         let v2 = p.next();
         assert!(v2 < v1);
+    }
+
+    #[test]
+    fn test_fdn_reverb_decays() {
+        let mut reverb = FdnReverb::new(48000.0);
+        reverb.set_params(1.0, 0.5);
+        reverb.tick(1.0);
+        let mut last = 1.0_f32;
+        for _ in 0..48000 {
+            last = reverb.tick(0.0);
+        }
+        assert!(last.abs() < 0.1, "FDN reverb should decay after 1s, got {}", last);
+    }
+
+    #[test]
+    fn test_fdn_reverb_stereo_differs() {
+        let mut reverb = FdnReverb::new(48000.0);
+        reverb.set_params(0.5, 0.3);
+        reverb.tick_stereo(1.0);
+        // After some samples, L and R should differ (decorrelation)
+        let mut l_differs_r = false;
+        for _ in 0..2000 {
+            let (l, r) = reverb.tick_stereo(0.0);
+            if (l - r).abs() > 0.001 {
+                l_differs_r = true;
+                break;
+            }
+        }
+        assert!(l_differs_r, "Stereo FDN should produce different L/R outputs");
+    }
+
+    #[test]
+    fn test_lookahead_limiter_clamps_peaks() {
+        let mut limiter = LookaheadLimiter::new(48000.0);
+        // Feed silence to fill buffer, then a loud spike
+        for _ in 0..100 {
+            limiter.tick_stereo(0.0, 0.0);
+        }
+        // Feed a spike
+        for _ in 0..50 {
+            limiter.tick_stereo(2.0, 2.0);
+        }
+        // Read output — should be limited
+        let mut max_out = 0.0_f32;
+        for _ in 0..200 {
+            let (l, r) = limiter.tick_stereo(0.0, 0.0);
+            max_out = max_out.max(l.abs()).max(r.abs());
+        }
+        assert!(max_out < 1.0, "Limiter should prevent output > threshold, got {}", max_out);
+    }
+
+    #[test]
+    fn test_sidechain_envelope_follows() {
+        let mut env = SidechainEnvelope::new(48000.0);
+        // Feed silence — level should be ~0
+        for _ in 0..1000 {
+            env.tick(0.0);
+        }
+        assert!(env.level < 0.01);
+        // Feed loud signal — level should rise
+        for _ in 0..100 {
+            env.tick(0.8);
+        }
+        assert!(env.level > 0.3, "Envelope should follow loud input, got {}", env.level);
+        // Duck gain should reduce
+        assert!(env.duck_gain(0.5) < 0.9);
+    }
+
+    #[test]
+    fn test_oversampler_passthrough() {
+        let mut os = Oversampler2x::new();
+        // Linear function should pass through unchanged
+        let out = os.tick(1.0, |x| x);
+        // First sample: mid = (0.0 + 1.0) * 0.5 = 0.5, output = (0.5 + 1.0) * 0.5 = 0.75
+        // (slight latency artifact from interpolation — expected)
+        assert!(out > 0.5 && out < 1.0);
     }
 
 }

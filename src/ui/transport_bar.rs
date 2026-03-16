@@ -176,16 +176,20 @@ pub fn render_transport(f: &mut Frame, area: Rect, app: &App) {
     let vol = app.effect_params.master_volume;
     let comp = app.effect_params.compressor_amount;
     let sat = app.effect_params.drum_saturator_drive;
+    let sc = app.effect_params.sidechain_amount;
 
     let gauge_line = Line::from(vec![
         Span::styled("VOL ", gauge_label_style),
         gauge_spans(vol, 6, gauge_fill_style, gauge_empty_style),
-        Span::raw("   "),
+        Span::raw("  "),
         Span::styled("CMP ", gauge_label_style),
         gauge_spans(comp, 4, gauge_fill_style, gauge_empty_style),
-        Span::raw("   "),
+        Span::raw("  "),
         Span::styled("SAT ", gauge_label_style),
         gauge_spans(sat, 4, gauge_fill_style, gauge_empty_style),
+        Span::raw("  "),
+        Span::styled("SC ", gauge_label_style),
+        gauge_spans(sc, 4, gauge_fill_style, gauge_empty_style),
     ]);
 
     let paragraph = Paragraph::new(vec![

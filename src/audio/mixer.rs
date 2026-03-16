@@ -1,4 +1,4 @@
-// Summing mixer: mute/solo logic, soft clip
+// Summing mixer: mute/solo logic, soft clip, stereo decorrelation
 
 /// Returns `true` if the given track should be effectively muted.
 ///
@@ -20,17 +20,45 @@ pub fn soft_clip(x: f32) -> f32 {
     x.tanh()
 }
 
-/// Gentle per-track saturation using cubic soft-clip.
-/// Adds subtle odd harmonics and tames peaks without killing transients.
-/// More transparent than tanh — preserves the first ~0.8 of dynamic range linearly.
+/// Per-track saturation: linear below ±1.0 to preserve drum transients,
+/// soft-limiting above ±1.0 to tame extreme peaks.
 #[inline]
 pub fn per_track_saturate(x: f32) -> f32 {
-    if x > 1.0 {
-        2.0 / 3.0 + (x - 1.0) / (1.0 + (x - 1.0) * (x - 1.0))
-    } else if x < -1.0 {
-        -2.0 / 3.0 + (x + 1.0) / (1.0 + (x + 1.0) * (x + 1.0))
+    let abs_x = x.abs();
+    if abs_x <= 1.0 {
+        x
     } else {
-        x - (x * x * x) / 3.0
+        // Soft limit: asymptotically approaches ±2.0
+        let excess = abs_x - 1.0;
+        x.signum() * (1.0 + excess / (1.0 + excess))
+    }
+}
+
+/// Micro-delay for stereo decorrelation.
+/// Shifts one channel by a fraction of a millisecond to create spatial width
+/// from mono signals (reverb, delay returns). Mono-compatible at short delays.
+pub struct MicroDelay {
+    buf: Vec<f32>,
+    pos: usize,
+    len: usize,
+}
+
+impl MicroDelay {
+    pub fn new(delay_ms: f64, sample_rate: f64) -> Self {
+        let len = ((delay_ms * 0.001 * sample_rate) as usize).max(1);
+        Self {
+            buf: vec![0.0; len],
+            pos: 0,
+            len,
+        }
+    }
+
+    #[inline]
+    pub fn tick(&mut self, input: f32) -> f32 {
+        let out = self.buf[self.pos];
+        self.buf[self.pos] = input;
+        self.pos = (self.pos + 1) % self.len;
+        out
     }
 }
 
@@ -106,6 +134,19 @@ mod tests {
         let x = 0.1_f32;
         let y = per_track_saturate(x);
         assert!((y - x).abs() < 0.02);
+    }
+
+    #[test]
+    fn test_per_track_saturate_linear_below_unity() {
+        // Below ±1.0, the saturator must be transparent to preserve drum transients
+        for &x in &[0.3_f32, 0.5, 0.7, 0.8, 0.95, -0.5, -0.8] {
+            let y = per_track_saturate(x);
+            assert!(
+                (y - x).abs() < 0.01,
+                "per_track_saturate({}) = {}, expected ~{} (must be linear below unity)",
+                x, y, x
+            );
+        }
     }
 
     #[test]

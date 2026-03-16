@@ -58,13 +58,13 @@ fn row3<'a>(
 /// covering transport, navigation, editing, and pattern management shortcuts.
 pub fn render_help(f: &mut Frame, area: Rect) {
     let block = Block::default()
-        .title(" Key Bindings (? to close) ")
+        .title(" 🎹 Key Bindings (? to close) ")
         .title_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Yellow));
 
     let lines = vec![
-        hdr("Transport",        "Navigation",       "Sound & Editing"),
+        hdr("▶ Transport",       "🧭 Navigation",     "🎛 Sound & Editing"),
         row3("Space",       "Play / Pause",
              "Tab",         "Next section",
              "Shift+M",    "Mute track"),
@@ -88,9 +88,12 @@ pub fn render_help(f: &mut Frame, area: Rect) {
              "F2",         "Toggle synths"),
         row3("< / >",      "Swing ±5%",
              "~",          "Spectrum/VU",
-             "( / )",      "Crossfader A/B"),
+             "Shift+D",    "Sidechain"),
+        row3("( / )",      "Crossfader A/B",
+             "",           "",
+             "",           ""),
         Line::from(Span::raw("")),
-        hdr("Patterns & Kits",  "Synth A + B Grid", "File / Project"),
+        hdr("🔀 Patterns & Kits", "🎹 Synth A + B",   "💾 File / Project"),
         row3("q w e r t ..",    "Pattern 1-10",
              "Up / Down",       "Pitch ±semitone",
              "Ctrl+S",          "Save project"),
@@ -103,20 +106,23 @@ pub fn render_help(f: &mut Frame, area: Rect) {
         row3("1 2 3 .. 8",      "Switch kit 1-8",
              "z x c v ..",      "Synth notes",
              "Ctrl+K",          "Save kit"),
-        Line::from(Span::raw("")),
-        hdr("Drum Pads",        "Synth Knobs",      "Dual Synth"),
-        row3("z x c v b n m ,", "Trigger drums",
-             "Arrows",          "Navigate grid",
-             "Tab to SA/SB",    "Focus synth"),
-        row3("(rec + play)",    "Write at play",
-             "Shift+Up/Dn",     "Adjust value",
-             "Pat/Kit/Loop",    "Per-synth"),
-        row3("",                "",
-             "Alt+Up/Dn",       "Adjust+audition",
-             "Click A/B",       "Mute synth A/B"),
         row3("",                "",
              "",                "",
-             "Click C",         "Center crossfader"),
+             "Ctrl+J",          "Load kit"),
+        Line::from(Span::raw("")),
+        hdr("🥁 Drum Pads",      "🎬 Scenes (Ctrl+E)","📁 More"),
+        row3("z x c v b n m ,", "Trigger drums",
+             "Return",          "Queue scene",
+             "Ctrl+P",          "Preset browser"),
+        row3("(rec + play)",    "Write at play",
+             "!",               "Immediate switch",
+             "Ctrl+L",          "Pattern browser"),
+        row3("(rec + stop)",    "Step-entry",
+             "S",               "Save to slot",
+             "Ctrl+C/Q",        "Quit"),
+        row3("",                "",
+             "R / D",           "Rename / Delete",
+             "?",               "This help"),
     ];
 
     let paragraph = Paragraph::new(lines).block(block);

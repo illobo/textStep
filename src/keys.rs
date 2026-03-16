@@ -456,6 +456,37 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             return;
         }
 
+        // Sidechain: Shift+D cycles duck depth (Off → Light → Medium → Heavy → Max → Off)
+        KeyCode::Char('D') => {
+            let cur = app.effect_params.sidechain_amount;
+            app.effect_params.sidechain_amount = if cur < 0.01 {
+                0.25
+            } else if cur < 0.30 {
+                0.50
+            } else if cur < 0.55 {
+                0.75
+            } else if cur < 0.80 {
+                1.0
+            } else {
+                0.0
+            };
+            app.send_effect_params();
+            app.dirty = true;
+            let label = if app.effect_params.sidechain_amount < 0.01 {
+                "Off"
+            } else if app.effect_params.sidechain_amount < 0.30 {
+                "Light"
+            } else if app.effect_params.sidechain_amount < 0.55 {
+                "Medium"
+            } else if app.effect_params.sidechain_amount < 0.80 {
+                "Heavy"
+            } else {
+                "Max"
+            };
+            app.show_status(format!("Sidechain: {}", label));
+            return;
+        }
+
         // Randomize current page params (Alt+R)
         KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::ALT) => {
             randomize_page_params(app);
