@@ -666,7 +666,18 @@ pub fn demo_project() -> ProjectFile {
         active_synth_b_kit: 0,
         synth_b_patterns,
         active_synth_b_pattern: 0,
-        scenes: Vec::new(),
+        scenes: vec![
+            Some(Scene { name: "Acid Techno".into(),   drum_pattern: 0, drum_kit: 0, synth_a_pattern: 0, synth_a_kit: 0, synth_b_pattern: 0, synth_b_kit: 0, bpm: 138.0, swing: 0.50 }),
+            Some(Scene { name: "Classic House".into(), drum_pattern: 1, drum_kit: 3, synth_a_pattern: 1, synth_a_kit: 1, synth_b_pattern: 1, synth_b_kit: 1, bpm: 122.0, swing: 0.50 }),
+            Some(Scene { name: "Deep House".into(),    drum_pattern: 2, drum_kit: 3, synth_a_pattern: 2, synth_a_kit: 2, synth_b_pattern: 2, synth_b_kit: 2, bpm: 120.0, swing: 0.50 }),
+            Some(Scene { name: "Driving Techno".into(),drum_pattern: 3, drum_kit: 2, synth_a_pattern: 3, synth_a_kit: 3, synth_b_pattern: 3, synth_b_kit: 3, bpm: 130.0, swing: 0.50 }),
+            Some(Scene { name: "Lo-Fi Hip Hop".into(), drum_pattern: 4, drum_kit: 5, synth_a_pattern: 4, synth_a_kit: 4, synth_b_pattern: 4, synth_b_kit: 4, bpm: 85.0,  swing: 0.50 }),
+            Some(Scene { name: "Trance".into(),        drum_pattern: 5, drum_kit: 1, synth_a_pattern: 5, synth_a_kit: 5, synth_b_pattern: 5, synth_b_kit: 5, bpm: 140.0, swing: 0.50 }),
+            Some(Scene { name: "Drum & Bass".into(),   drum_pattern: 6, drum_kit: 6, synth_a_pattern: 6, synth_a_kit: 6, synth_b_pattern: 6, synth_b_kit: 6, bpm: 174.0, swing: 0.50 }),
+            Some(Scene { name: "Electro Funk".into(),  drum_pattern: 7, drum_kit: 6, synth_a_pattern: 7, synth_a_kit: 7, synth_b_pattern: 7, synth_b_kit: 7, bpm: 128.0, swing: 0.50 }),
+            Some(Scene { name: "Dub Techno".into(),    drum_pattern: 8, drum_kit: 2, synth_a_pattern: 8, synth_a_kit: 4, synth_b_pattern: 8, synth_b_kit: 2, bpm: 118.0, swing: 0.50 }),
+            Some(Scene { name: "Ambient".into(),       drum_pattern: 9, drum_kit: 7, synth_a_pattern: 9, synth_a_kit: 5, synth_b_pattern: 9, synth_b_kit: 6, bpm: 90.0,  swing: 0.50 }),
+        ],
     }
 }
 
@@ -1171,6 +1182,14 @@ mod tests {
         // Old data should be intact
         assert_eq!(project.metadata.name, "Old Project");
         assert_eq!(project.synth_patterns[0].name, "Synth 1");
+    }
+
+    #[test]
+    fn demo_project_has_scenes() {
+        let proj = demo_project();
+        assert!(!proj.scenes.is_empty());
+        let populated = proj.scenes.iter().filter(|s| s.is_some()).count();
+        assert!(populated >= 5, "Expected at least 5 demo scenes, got {}", populated);
     }
 }
 
