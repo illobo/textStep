@@ -177,29 +177,9 @@ impl DrumControlField {
         }
     }
 
-    /// Next field within the visible set for the current page.
-    pub fn next(self, page: ParamPage) -> Self {
-        let fields = Self::fields_for_page(page);
-        let idx = fields.iter().position(|&f| f == self).unwrap_or(0);
-        fields[(idx + 1) % fields.len()]
-    }
-
-    /// Previous field within the visible set for the current page.
-    pub fn prev(self, page: ParamPage) -> Self {
-        let fields = Self::fields_for_page(page);
-        let idx = fields.iter().position(|&f| f == self).unwrap_or(0);
-        fields[(idx + fields.len() - 1) % fields.len()]
-    }
-
     /// First field for a given page.
     pub fn first_for_page(page: ParamPage) -> Self {
         Self::fields_for_page(page)[0]
-    }
-
-    /// Last field for a given page.
-    pub fn last_for_page(page: ParamPage) -> Self {
-        let fields = Self::fields_for_page(page);
-        fields[fields.len() - 1]
     }
 }
 
@@ -408,7 +388,6 @@ pub struct CrossfaderDrag {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FaderKind {
     Drum,
-    Synth,
     SynthA,
     SynthB,
 }
@@ -447,8 +426,6 @@ pub struct MouseState {
     pub synth_note_drag: Option<SynthNoteDrag>,
     /// Active crossfader drag (horizontal).
     pub crossfader_drag: Option<CrossfaderDrag>,
-    /// Last click on A/B label for double-click mute detection: (time, is_b_side).
-    pub last_xfade_label_click: Option<(Instant, bool)>,
 }
 
 impl Default for MouseState {
@@ -461,7 +438,6 @@ impl Default for MouseState {
             synth_drag: None,
             synth_note_drag: None,
             crossfader_drag: None,
-            last_xfade_label_click: None,
         }
     }
 }
@@ -1047,17 +1023,6 @@ impl App {
         self.synth_a_pattern = SynthPattern::default();
         self.project.load_synth_pattern(index, &mut self.synth_a_pattern);
         self.send_synth_pattern(SynthId::A);
-    }
-
-    /// Queue a synth pattern to switch at end of current loop.
-    pub fn queue_synth_pattern(&mut self, index: usize) {
-        if index >= NUM_PATTERNS { return; }
-        if index == self.ui.synth_a.active_pattern {
-            // Pressing the same pattern cancels the queue
-            self.ui.synth_a.queued_pattern = None;
-        } else {
-            self.ui.synth_a.queued_pattern = Some(index);
-        }
     }
 
     /// Switch to a different synth kit immediately.

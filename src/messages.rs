@@ -20,7 +20,6 @@ pub enum UiToAudio {
     SetEffectParams(EffectParams),
     TriggerDrum(DrumTrackId),  // fire the voice immediately
     TriggerSynth(SynthId, u8),         // MIDI note number — fire synth immediately
-    ReleaseSynth(SynthId),             // release synth envelopes
 }
 
 /// Notifications sent from the audio thread back to the UI.
