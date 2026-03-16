@@ -1,10 +1,10 @@
 <div align="center">
 
-# T E X T S T E P
+# 🎛️ T E X T S T E P 🎹
 
 **A terminal-based step sequencer, drum machine, and synthesizer built entirely in Rust.**
 
-All DSP from scratch — no samples, no external audio libraries. Just your terminal and your speakers.
+♪ All DSP from scratch — no samples, no external audio libraries. Just your terminal and your speakers. ♫
 
 [![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
@@ -21,22 +21,22 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 
 ---
 
-## Features
+## ✨ Features
 
-- **8 Drum Tracks** — Kick, Snare, Closed HiHat, Open HiHat, Ride, Clap, Cowbell, Tom — each fully synthesized with 8 tweakable sound parameters
-- **Dual Polyphonic Synths** — Synth A + Synth B with DJ-style crossfader, each with 2 oscillators + sub, 2 ADSR envelopes, resonant filter, dual LFOs with 6 waveforms, independent patterns and kits
-- **32-Step Sequencer** — 10 patterns and 8 kit slots with per-pattern BPM and swing
-- **16 Scene Slots** — snapshot and recall full instrument states (all patterns, kits, BPM, swing) with queued or immediate switching
-- **Pro Audio Engine** — FDN reverb (8-line stereo), tempo-synced delay, 2×-oversampled tube saturator, SSL-style glue compressor, lookahead limiter, sidechain compression (kick ducks synths)
-- **Live Performance** — drum pads, real-time recording, pattern queuing, scene-based arrangement
-- **Mouse Support** — click the grid, drag parameters Ableton-style, audition sounds from the activity bar
-- **Project System** — save/load `.tsp` files, standalone kit export, preset browser
-- **Collapsible Panels** — minimize/expand synth, drum knobs, and waveform sections; auto-adapts to small terminals
-- **Spectrum Analyzer** — real-time FFT spectrum display and VU meter with 90s Hi-Fi LED aesthetic
+- 🥁 **8 Drum Tracks** — Kick, Snare, Closed HiHat, Open HiHat, Ride, Clap, Cowbell, Tom — each fully synthesized with 8 tweakable sound parameters
+- 🎹 **Dual Polyphonic Synths** — Synth A + Synth B with DJ-style crossfader, each with 2 oscillators + sub, 2 ADSR envelopes, resonant filter, dual LFOs with 6 waveforms, independent patterns and kits
+- 🔲 **32-Step Sequencer** — 10 patterns and 8 kit slots with per-pattern BPM and swing
+- 🎬 **16 Scene Slots** — snapshot and recall full instrument states (all patterns, kits, BPM, swing) with queued or immediate switching
+- 🔊 **Pro Audio Engine** — FDN reverb (8-line stereo), tempo-synced delay, 2×-oversampled tube saturator, SSL-style glue compressor, lookahead limiter, sidechain compression (kick ducks synths)
+- 🎤 **Live Performance** — drum pads, real-time recording, pattern queuing, scene-based arrangement
+- 🖱️ **Mouse Support** — click the grid, drag parameters Ableton-style, audition sounds from the activity bar
+- 💾 **Project System** — save/load `.tsp` files, standalone kit export, preset browser
+- 📐 **Collapsible Panels** — minimize/expand synth, drum knobs, and waveform sections; auto-adapts to small terminals
+- 📊 **Spectrum Analyzer** — real-time FFT spectrum display and VU meter with 90s Hi-Fi LED aesthetic
 
-Ships with **10 demo scenes** ready to play: Acid Techno, Classic House, Deep House, Driving Techno, Lo-Fi Hip Hop, Trance, Drum & Bass, Electro Funk, Dub Techno, and Ambient — each with matched drum patterns, synth patterns, and kits.
+Ships with **10 demo scenes** ready to play: 🎵 Acid Techno, Classic House, Deep House, Driving Techno, Lo-Fi Hip Hop, Trance, Drum & Bass, Electro Funk, Dub Techno, and Ambient — each with matched drum patterns, synth patterns, and kits.
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
@@ -79,9 +79,9 @@ Pre-built binaries for macOS (ARM, x86_64, universal) and Linux (x86_64) are ava
 xattr -d com.apple.quarantine ./textstep
 ```
 
-## Quick Manual
+## 🎚️ Quick Manual
 
-### Transport
+### ▶️ Transport
 
 | Key | Action |
 |-----|--------|
@@ -101,7 +101,7 @@ xattr -d com.apple.quarantine ./textstep
 | Click `A` / `B` | Mute/unmute Synth A / B |
 | Click `C` | Reset crossfader to center |
 
-### Navigation
+### 🧭 Navigation
 
 | Key | Action |
 |-----|--------|
@@ -113,7 +113,7 @@ xattr -d com.apple.quarantine ./textstep
 | `~` | Toggle spectrum analyzer / VU meter |
 | `?` | Help overlay |
 
-### Sound Design
+### 🎛️ Sound Design
 
 Each drum track has 8 parameters across three pages:
 
@@ -127,7 +127,7 @@ Tweak with `Shift+Up/Down` (adjust value) or `Alt+Up/Down` (adjust and audition 
 
 Mute (`Shift+M`) and Solo (`Shift+S`) are always accessible on any page.
 
-### Drum Pads
+### 🥁 Drum Pads
 
 The bottom keyboard row triggers sounds live:
 
@@ -137,7 +137,7 @@ The bottom keyboard row triggers sounds live:
 
 With record enabled and playback running, pad hits write steps at the playhead.
 
-### Patterns & Kits
+### 🔀 Patterns & Kits
 
 **Patterns** — 10 slots per section (Synth A, Synth B, Drums), each with its own step data:
 
@@ -154,13 +154,13 @@ With record enabled and playback running, pad hits write steps at the playhead.
 |-----|--------|
 | `1` through `8` | Switch to kit slot |
 
-### Dual Synths
+### 🎹 Dual Synths
 
 TextStep features two independent polyphonic synthesizers (**Synth A** and **Synth B**), each with its own patterns, kits, 2 oscillators + sub, noise, 2 ADSR envelopes, 24dB resonant filter, and LFO with 6 waveforms. Toggle all synth panels with `F2`. Each synth has its own pattern/kit selectors shown in the transport bar.
 
 Synth notes are triggered with `z` `x` `c` `v` when a synth grid is focused, with `Up/Down` for pitch and `(` `)` for octave shifts.
 
-### Scenes
+### 🎬 Scenes
 
 Scenes are snapshots of the full instrument state: which pattern and kit is selected for drums, Synth A, and Synth B, plus BPM and swing. Use them to arrange your track.
 
@@ -174,7 +174,7 @@ Scenes are snapshots of the full instrument state: which pattern and kit is sele
 | `D` | Delete scene |
 | `Esc` | Close browser |
 
-### File Operations
+### 💾 File Operations
 
 | Key | Action |
 |-----|--------|
@@ -190,7 +190,7 @@ Scenes are snapshots of the full instrument state: which pattern and kit is sele
 
 Projects are stored as JSON in `~/Library/Application Support/textstep/projects/`.
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -220,7 +220,7 @@ Projects are stored as JSON in `~/Library/Application Support/textstep/projects/
 
 Communication is lock-free via bounded crossbeam channels. The audio thread never blocks.
 
-### DSP — All From Scratch
+### 🔧 DSP — All From Scratch
 
 Every sound is synthesized in real-time with no external DSP dependencies:
 
@@ -239,7 +239,7 @@ Every sound is synthesized in real-time with no external DSP dependencies:
 | `src/sequencer/` | Data: patterns, transport, project serialization |
 | `src/presets/` | Preset browser: drum/synth sounds and patterns by genre |
 
-### Color Palette
+### 🎨 Color Palette
 
 Hardware/synthwave aesthetic — all rendered with UTF-8 block characters on a dark background.
 
@@ -312,7 +312,7 @@ textStep/
 └── LICENSE                  # GPL v2
 ```
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please ensure:
 
@@ -330,6 +330,8 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 <div align="center">
 
-**Built with Rust** · **All DSP from scratch** · **Zero audio dependencies**
+🦀 **Built with Rust** · 🔊 **All DSP from scratch** · 🎵 **Zero audio dependencies**
+
+*"Any sufficiently advanced terminal is indistinguishable from a drum machine."*
 
 </div>
