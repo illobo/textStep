@@ -105,11 +105,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             return;
         }
         ModalState::SceneBrowser(_) => {
-            // TODO: Implement in Task 5
-            // For now, just allow Esc to close
-            if key.code == KeyCode::Esc {
-                app.ui.modal = ModalState::None;
-            }
+            handle_scene_browser(app, key);
             return;
         }
         ModalState::None => {}
@@ -166,6 +162,12 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         // Load kit
         KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.open_load_kit_dialog();
+            return;
+        }
+
+        // Scene browser
+        KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.open_scene_browser();
             return;
         }
 
@@ -662,6 +664,12 @@ fn handle_text_input(app: &mut App, key: KeyEvent) {
                     if !name.is_empty() {
                         app.rename_current_pattern(&name);
                         app.show_status(format!("Pattern renamed: {}", name));
+                    }
+                }
+                ModalAction::RenameScene(slot) => {
+                    if !name.is_empty() {
+                        app.rename_scene(slot, &name);
+                        app.show_status(format!("Scene renamed: {}", name));
                     }
                 }
                 ModalAction::SaveKit => {
@@ -1257,6 +1265,67 @@ fn handle_pattern_browser(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Esc => {
             app.ui.modal = ModalState::None;
+        }
+        _ => {}
+    }
+}
+
+fn handle_scene_browser(app: &mut App, key: KeyEvent) {
+    let browser = if let ModalState::SceneBrowser(ref mut b) = app.ui.modal {
+        b
+    } else {
+        return;
+    };
+
+    match key.code {
+        KeyCode::Esc => {
+            app.ui.modal = ModalState::None;
+        }
+        KeyCode::Up => {
+            if browser.selected > 0 {
+                browser.selected -= 1;
+            }
+        }
+        KeyCode::Down => {
+            let max = crate::sequencer::project::NUM_SCENES.min(14) - 1;
+            if browser.selected < max {
+                browser.selected += 1;
+            }
+        }
+        KeyCode::Enter => {
+            let idx = browser.selected;
+            if key.modifiers.contains(KeyModifiers::SHIFT) {
+                // Immediate switch
+                app.apply_scene_immediate(idx);
+                app.show_status(format!("Scene {} applied", idx + 1));
+            } else {
+                // Queue switch
+                app.queue_scene(idx);
+                app.show_status(format!("Scene {} queued", idx + 1));
+            }
+            app.ui.modal = ModalState::None;
+        }
+        KeyCode::Char('s') | KeyCode::Char('S') => {
+            let idx = browser.selected;
+            app.save_scene(idx);
+            app.show_status(format!("Scene {} saved", idx + 1));
+        }
+        KeyCode::Char('d') | KeyCode::Char('D') => {
+            let idx = browser.selected;
+            app.delete_scene(idx);
+            app.show_status(format!("Scene {} deleted", idx + 1));
+        }
+        KeyCode::Char('r') | KeyCode::Char('R') => {
+            let idx = browser.selected;
+            let current_name = app.project.scenes.get(idx)
+                .and_then(|s| s.as_ref())
+                .map(|s| s.name.clone())
+                .unwrap_or_else(|| format!("Scene {}", idx + 1));
+            app.ui.modal = ModalState::TextInput {
+                prompt: format!("Rename scene {}:", idx + 1),
+                buffer: current_name,
+                on_confirm: ModalAction::RenameScene(idx),
+            };
         }
         _ => {}
     }
