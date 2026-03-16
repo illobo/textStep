@@ -570,9 +570,13 @@ impl AudioEngine {
             let (reverb_l, reverb_r) = self.drum_reverb.tick_stereo(reverb_send);
             let delay_out = self.drum_delay.tick(delay_send);
 
-            // Sidechain: kick ducks synths for separation (~6dB at peak)
+            // Sidechain: kick ducks synths for separation (depth from effect params)
             self.sidechain.tick(kick_sample);
-            let duck = self.sidechain.duck_gain(0.5);
+            let duck = if self.effect_params.sidechain_amount > 0.001 {
+                self.sidechain.duck_gain(self.effect_params.sidechain_amount)
+            } else {
+                1.0
+            };
 
             // Apply crossfader gain: center (0.5) = both full, extremes fade one out
             let xf = self.crossfader;

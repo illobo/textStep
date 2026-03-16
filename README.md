@@ -94,6 +94,7 @@ xattr -d com.apple.quarantine ./textstep
 | `L` | Cycle loop length: 8 / 16 / 24 / 32 |
 | `Shift+C` | Cycle compressor: Off / Light / Medium / Heavy / Max |
 | `Shift+T` | Cycle tube saturator: Off / Light / Medium / Heavy / Max |
+| `Shift+D` | Cycle sidechain duck: Off / Light / Medium / Heavy / Max |
 | `Shift+V` | Adjust master volume |
 | `<` / `>` | Swing ±5% |
 | `(` / `)` | Crossfader toward A / B |

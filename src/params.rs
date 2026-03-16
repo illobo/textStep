@@ -23,7 +23,11 @@ pub struct EffectParams {
     pub drum_volume: f32,        // 0.0-1.0: drum bus output volume
     #[serde(default = "default_crossfader")]
     pub crossfader: f32,         // 0.0-1.0: synth A/B crossfader (0=A, 0.5=center, 1=B)
+    #[serde(default = "default_sidechain")]
+    pub sidechain_amount: f32,   // 0.0-1.0: kick→synth sidechain duck depth (0=off)
 }
+
+fn default_sidechain() -> f32 { 0.5 }
 
 fn default_master_volume() -> f32 { 0.8 }
 fn default_drum_volume() -> f32 { 1.0 }
@@ -43,6 +47,7 @@ impl Default for EffectParams {
             synth_saturator_drive: 0.0,
             drum_volume: 1.0,
             crossfader: 0.5,
+            sidechain_amount: 0.5,
         }
     }
 }
