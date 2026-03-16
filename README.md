@@ -12,8 +12,8 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-lightgrey?logo=linux&logoColor=white)](https://www.kernel.org/)
 [![Audio: CoreAudio / ALSA](https://img.shields.io/badge/Audio-CoreAudio_|_ALSA-green)](https://developer.apple.com/documentation/coreaudio)
 [![TUI: ratatui](https://img.shields.io/badge/TUI-ratatui-purple)](https://ratatui.rs/)
-[![Lines of Code](https://img.shields.io/badge/Lines_of_Code-20k-informational)]()
-[![Tests](https://img.shields.io/badge/Tests-48_passing-brightgreen)]()
+[![Lines of Code](https://img.shields.io/badge/Lines_of_Code-17k-informational)]()
+[![Tests](https://img.shields.io/badge/Tests-55_passing-brightgreen)]()
 
 ![TextStep Demo](assets/demo.gif)
 
@@ -27,7 +27,7 @@ All DSP from scratch — no samples, no external audio libraries. Just your term
 - **Dual Polyphonic Synths** — Synth A + Synth B with DJ-style crossfader, each with 2 oscillators + sub, 2 ADSR envelopes, resonant filter, dual LFOs with 6 waveforms, independent patterns and kits
 - **32-Step Sequencer** — 10 patterns and 8 kit slots with per-pattern BPM and swing
 - **16 Scene Slots** — snapshot and recall full instrument states (all patterns, kits, BPM, swing) with queued or immediate switching
-- **Send Effects Chain** — Schroeder reverb, tempo-synced filtered delay, tube saturator, SSL-style glue compressor
+- **Pro Audio Engine** — FDN reverb (8-line stereo), tempo-synced delay, 2×-oversampled tube saturator, SSL-style glue compressor, lookahead limiter, sidechain compression (kick ducks synths)
 - **Live Performance** — drum pads, real-time recording, pattern queuing, scene-based arrangement
 - **Mouse Support** — click the grid, drag parameters Ableton-style, audition sounds from the activity bar
 - **Project System** — save/load `.tsp` files, standalone kit export, preset browser
@@ -66,7 +66,7 @@ sudo apt-get install libasound2-dev   # Debian/Ubuntu
 Run the tests:
 
 ```bash
-cargo test    # 48 tests, runs in <1s
+cargo test    # 55 tests, runs in <1s
 ```
 
 ### Pre-built Binaries
@@ -224,9 +224,9 @@ Communication is lock-free via bounded crossbeam channels. The audio thread neve
 Every sound is synthesized in real-time with no external DSP dependencies:
 
 - **Drum voices** — TR-808/909-inspired kicks (sine + pitch envelope + resonant impulse), noise-blended snares, 6-oscillator metallic banks for hats and rides (Mutable Instruments Plaits-style inharmonic ratios), ring-modulated open hats, bandpass claps, detuned pulse cowbells, FM toms
-- **Synth voice** — dual oscillators, sub, noise, two ADSR envelopes, resonant SVF filter, 6-waveform LFO
-- **Effects** — Schroeder/Freeverb reverb (4 comb + 2 allpass), tempo-synced filtered delay, asymmetric tube saturator, feedforward RMS glue compressor with soft knee
-- **Primitives** — 1-pole HP/LP filters, state-variable filter, xorshift32 noise, tanh waveshaping
+- **Synth voice** — dual PolyBLEP anti-aliased oscillators, sub, noise, two ADSR envelopes, resonant SVF filter, 6-waveform LFO
+- **Effects** — 8-line FDN reverb with Householder feedback matrix (native stereo), tempo-synced filtered delay, 2×-oversampled asymmetric tube saturator, feedforward RMS glue compressor with soft knee, true-peak lookahead limiter, sidechain envelope follower
+- **Primitives** — 1-pole HP/LP filters, state-variable filter, xorshift32 noise, stereo decorrelation
 
 ### Source Map
 

@@ -7,7 +7,7 @@ TUI step sequencer / drum machine / synth in Rust. All DSP from scratch.
 ```bash
 cargo build          # dev build
 cargo build --release
-cargo test           # 23 tests, runs in <1s
+cargo test           # 55 tests, runs in <1s
 cargo run            # launch TUI
 ```
 
@@ -46,7 +46,7 @@ Two-thread model: UI thread (ratatui + crossterm) and audio thread (cpal/CoreAud
 - `drum_voice.rs` — per-track DSP (kick, snare, hats, etc.), params: tune/sweep/color/snap/filter/drive/decay/volume
 - `synth_voice.rs` — polyphonic synth DSP, 2 oscillators, 2 envelopes, filter with own ADSR
 - `mixer.rs` — channel mixing, send effects
-- `effects.rs` — reverb, delay, compressor, saturator
+- `effects.rs` — FDN reverb, delay, compressor, saturator, lookahead limiter, sidechain envelope, oversampler
 - `display_buffer.rs` — lock-free audio→UI buffer for waveform display
 - `fft.rs` — FFT for spectrum analyzer
 
