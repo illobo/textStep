@@ -396,6 +396,7 @@ const OSC1_SLIDERS: &[SynthControlField] = &[
     SynthControlField::Osc1Tune,
     SynthControlField::Osc1Pwm,
     SynthControlField::Osc1Level,
+    SynthControlField::Glide,
 ];
 
 const OSC2_SLIDERS: &[SynthControlField] = &[
@@ -424,6 +425,7 @@ const FILT_SLIDERS: &[SynthControlField] = &[
     SynthControlField::FilterCutoff,
     SynthControlField::FilterResonance,
     SynthControlField::FilterEnvAmount,
+    SynthControlField::FilterKeyFollow,
 ];
 
 const FILT_ENV_ADSR: &[SynthControlField] = &[
@@ -477,7 +479,19 @@ fn hit_test_synth_knobs(col: u16, row: u16, knobs_area: Rect) -> Option<SynthCon
         } else if hit_test_area(col, row, cols[2]) {
             let local_row = row - cols[2].y;
             return match local_row {
-                0 | 1 => Some(SynthControlField::Osc2Waveform),
+                0 | 1 => {
+                    // Three zones: Osc2Waveform | SubWaveform | OscSync
+                    let third = cols[2].width / 3;
+                    let zone1 = cols[2].x + third;
+                    let zone2 = cols[2].x + third * 2;
+                    if col < zone1 {
+                        Some(SynthControlField::Osc2Waveform)
+                    } else if col < zone2 {
+                        Some(SynthControlField::SubWaveform)
+                    } else {
+                        Some(SynthControlField::OscSync)
+                    }
+                }
                 _ => hit_slider_field(col, cols[2].x, cols[2].width, OSC2_SLIDERS),
             };
         }
@@ -645,6 +659,8 @@ fn handle_synth_knobs_click(app: &mut App, synth_id: SynthId, field: SynthContro
     // For enum fields, just cycle on click instead of drag
     if field.is_enum() {
         let max_val: u8 = match field {
+            SynthControlField::OscSync => 1,   // toggle: 0 or 1
+            SynthControlField::SubWaveform => 2, // Sqr/Sin/Saw
             SynthControlField::FilterType => 2,
             SynthControlField::LfoWaveform | SynthControlField::Lfo2Waveform =>
                 crate::sequencer::synth_pattern::NUM_LFO_WAVEFORMS - 1,

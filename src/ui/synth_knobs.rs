@@ -23,6 +23,7 @@ const OSC1_SLIDERS: &[SynthControlField] = &[
     SynthControlField::Osc1Tune,
     SynthControlField::Osc1Pwm,
     SynthControlField::Osc1Level,
+    SynthControlField::Glide,
 ];
 
 const OSC2_SLIDERS: &[SynthControlField] = &[
@@ -37,6 +38,7 @@ const FILT_SLIDERS: &[SynthControlField] = &[
     SynthControlField::FilterCutoff,
     SynthControlField::FilterResonance,
     SynthControlField::FilterEnvAmount,
+    SynthControlField::FilterKeyFollow,
 ];
 
 const ENV1_ADSR: &[SynthControlField] = &[
@@ -136,12 +138,28 @@ pub fn render_synth_knobs(f: &mut Frame, area: Rect, app: &App, synth_id: SynthI
         );
 
         render_section_header(f, cols[2], "OSC2");
-        render_waveform_selector(
-            f,
-            Rect::new(cols[2].x, cols[2].y + 1, cols[2].width, 1),
-            params.osc2_waveform,
-            focused && sel == SynthControlField::Osc2Waveform,
-        );
+        // Row 1: Osc2 waveform (left) | Sub waveform (center) | Sync toggle (right)
+        {
+            let third = cols[2].width / 3;
+            render_waveform_selector(
+                f,
+                Rect::new(cols[2].x, cols[2].y + 1, third, 1),
+                params.osc2_waveform,
+                focused && sel == SynthControlField::Osc2Waveform,
+            );
+            render_sub_waveform_selector(
+                f,
+                Rect::new(cols[2].x + third, cols[2].y + 1, third, 1),
+                params.sub_waveform,
+                focused && sel == SynthControlField::SubWaveform,
+            );
+            render_sync_toggle(
+                f,
+                Rect::new(cols[2].x + third * 2, cols[2].y + 1, cols[2].width - third * 2, 1),
+                params.osc_sync > 0,
+                focused && sel == SynthControlField::OscSync,
+            );
+        }
         render_slider_group(
             f,
             Rect::new(cols[2].x, cols[2].y + 2, cols[2].width, 6),
@@ -284,6 +302,49 @@ fn render_waveform_selector(f: &mut Frame, area: Rect, current: u8, is_selected:
     let names = ["Sqr", "Saw", "Sin", "Nse"];
     let mut spans: Vec<Span> = Vec::new();
     spans.push(Span::raw(" "));
+
+    for (i, name) in names.iter().enumerate() {
+        let is_active = i as u8 == current;
+        if is_active {
+            let color = if is_selected { theme::PINK } else { theme::AMBER };
+            spans.push(Span::styled("[", Style::default().fg(color)));
+            spans.push(Span::styled(
+                *name,
+                Style::default().fg(color).add_modifier(Modifier::BOLD),
+            ));
+            spans.push(Span::styled("]", Style::default().fg(color)));
+        } else {
+            spans.push(Span::styled(
+                *name,
+                Style::default().fg(theme::DIM_TEXT),
+            ));
+        }
+        spans.push(Span::raw(" "));
+    }
+
+    f.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+// ── Sync toggle: [X]Sync or [ ]Sync ─────────────────────────────────────────
+
+fn render_sync_toggle(f: &mut Frame, area: Rect, enabled: bool, is_selected: bool) {
+    let color = if is_selected { theme::PINK } else if enabled { theme::AMBER } else { theme::DIM_TEXT };
+    let check = if enabled { "X" } else { " " };
+    let spans = vec![
+        Span::styled("[", Style::default().fg(color)),
+        Span::styled(check, Style::default().fg(color).add_modifier(Modifier::BOLD)),
+        Span::styled("]", Style::default().fg(color)),
+        Span::styled("Sync", Style::default().fg(color)),
+    ];
+    f.render_widget(Paragraph::new(Line::from(spans)), area);
+}
+
+// ── Sub waveform selector: [Sqr] Sin Saw ────────────────────────────────────
+
+fn render_sub_waveform_selector(f: &mut Frame, area: Rect, current: u8, is_selected: bool) {
+    let names = ["Sqr", "Sin", "Saw"];
+    let mut spans: Vec<Span> = Vec::new();
+    spans.push(Span::styled("Sub:", Style::default().fg(theme::DIM_TEXT)));
 
     for (i, name) in names.iter().enumerate() {
         let is_active = i as u8 == current;

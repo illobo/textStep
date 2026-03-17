@@ -70,9 +70,11 @@ pub struct SynthParams {
     #[serde(default)]
     pub osc2_detune: f32,  // 0.0-1.0, maps to -50..+50 cents (0.5 = no detune)
 
-    // Sub oscillator (square, 1 oct below osc2)
+    // Sub oscillator (1 oct below osc2)
     #[serde(default)]
     pub sub_level: f32, // 0.0-1.0
+    #[serde(default)]
+    pub sub_waveform: u8, // 0=Square, 1=Sine, 2=Saw
 
     // Envelope 1 (osc1 amplitude)
     #[serde(default)]
@@ -94,6 +96,14 @@ pub struct SynthParams {
     #[serde(default)]
     pub env2_release: f32,
 
+    // Portamento
+    #[serde(default)]
+    pub glide: f32, // 0.0-1.0, mapped to glide time (0=off, 1=slow)
+
+    // Osc sync (hard-sync osc2 to osc1)
+    #[serde(default)]
+    pub osc_sync: u8, // 0=off, 1=on
+
     // Filter (24dB multimode)
     #[serde(default)]
     pub filter_type: u8,        // 0=LP, 1=HP, 2=BP
@@ -103,6 +113,8 @@ pub struct SynthParams {
     pub filter_resonance: f32,
     #[serde(default)]
     pub filter_env_amount: f32, // 0.0-1.0
+    #[serde(default)]
+    pub filter_key_follow: f32, // 0.0-1.0, how much note pitch affects cutoff
 
     // Filter envelope
     #[serde(default)]
@@ -165,6 +177,7 @@ impl Default for SynthParams {
 
             // Sub: off
             sub_level: 0.0,
+            sub_waveform: 0, // Square
 
             // Env1: nice pluck/pad
             env1_attack: 0.01,
@@ -178,11 +191,18 @@ impl Default for SynthParams {
             env2_sustain: 0.7,
             env2_release: 0.2,
 
+            // Portamento: off
+            glide: 0.0,
+
+            // Osc sync: off
+            osc_sync: 0,
+
             // Filter: mostly open, LP
             filter_type: 0,
             filter_cutoff: 0.7,
             filter_resonance: 0.0,
             filter_env_amount: 0.0,
+            filter_key_follow: 0.0,
 
             // Filter env
             filter_env_attack: 0.0,
@@ -246,6 +266,7 @@ pub enum SynthControlField {
     Osc2Detune,
     // Sub
     SubLevel,
+    SubWaveform,
     // Env1
     Env1Attack,
     Env1Decay,
@@ -256,11 +277,16 @@ pub enum SynthControlField {
     Env2Decay,
     Env2Sustain,
     Env2Release,
+    // Portamento
+    Glide,
+    // Osc sync
+    OscSync,
     // Filter
     FilterType,
     FilterCutoff,
     FilterResonance,
     FilterEnvAmount,
+    FilterKeyFollow,
     // Filter Env
     FilterEnvAttack,
     FilterEnvDecay,
@@ -297,6 +323,7 @@ impl SynthControlField {
             Self::Osc2Level => "Level",
             Self::Osc2Detune => "Detune",
             Self::SubLevel => "Sub",
+            Self::SubWaveform => "SubWv",
             Self::Env1Attack => "Atk",
             Self::Env1Decay => "Dec",
             Self::Env1Sustain => "Sus",
@@ -305,10 +332,13 @@ impl SynthControlField {
             Self::Env2Decay => "Dec",
             Self::Env2Sustain => "Sus",
             Self::Env2Release => "Rel",
+            Self::Glide => "Glide",
+            Self::OscSync => "Sync",
             Self::FilterType => "Type",
             Self::FilterCutoff => "Freq",
             Self::FilterResonance => "Res",
             Self::FilterEnvAmount => "EnvAmt",
+            Self::FilterKeyFollow => "KeyFl",
             Self::FilterEnvAttack => "Atk",
             Self::FilterEnvDecay => "Dec",
             Self::FilterEnvSustain => "Sus",
@@ -340,6 +370,7 @@ impl SynthControlField {
             Self::Osc2Level => p.osc2_level,
             Self::Osc2Detune => p.osc2_detune,
             Self::SubLevel => p.sub_level,
+            Self::SubWaveform => p.sub_waveform as f32 / 2.0,
             Self::Env1Attack => p.env1_attack,
             Self::Env1Decay => p.env1_decay,
             Self::Env1Sustain => p.env1_sustain,
@@ -348,10 +379,13 @@ impl SynthControlField {
             Self::Env2Decay => p.env2_decay,
             Self::Env2Sustain => p.env2_sustain,
             Self::Env2Release => p.env2_release,
+            Self::Glide => p.glide,
+            Self::OscSync => p.osc_sync as f32,
             Self::FilterType => p.filter_type as f32 / 2.0,
             Self::FilterCutoff => p.filter_cutoff,
             Self::FilterResonance => p.filter_resonance,
             Self::FilterEnvAmount => p.filter_env_amount,
+            Self::FilterKeyFollow => p.filter_key_follow,
             Self::FilterEnvAttack => p.filter_env_attack,
             Self::FilterEnvDecay => p.filter_env_decay,
             Self::FilterEnvSustain => p.filter_env_sustain,
@@ -384,6 +418,7 @@ impl SynthControlField {
             Self::Osc2Level => p.osc2_level = v,
             Self::Osc2Detune => p.osc2_detune = v,
             Self::SubLevel => p.sub_level = v,
+            Self::SubWaveform => p.sub_waveform = (v * 2.0).round() as u8,
             Self::Env1Attack => p.env1_attack = v,
             Self::Env1Decay => p.env1_decay = v,
             Self::Env1Sustain => p.env1_sustain = v,
@@ -392,10 +427,13 @@ impl SynthControlField {
             Self::Env2Decay => p.env2_decay = v,
             Self::Env2Sustain => p.env2_sustain = v,
             Self::Env2Release => p.env2_release = v,
+            Self::Glide => p.glide = v,
+            Self::OscSync => p.osc_sync = if v > 0.5 { 1 } else { 0 },
             Self::FilterType => p.filter_type = (v * 2.0).round() as u8,
             Self::FilterCutoff => p.filter_cutoff = v,
             Self::FilterResonance => p.filter_resonance = v,
             Self::FilterEnvAmount => p.filter_env_amount = v,
+            Self::FilterKeyFollow => p.filter_key_follow = v,
             Self::FilterEnvAttack => p.filter_env_attack = v,
             Self::FilterEnvDecay => p.filter_env_decay = v,
             Self::FilterEnvSustain => p.filter_env_sustain = v,
@@ -416,7 +454,8 @@ impl SynthControlField {
     }
 
     pub fn is_enum(&self) -> bool {
-        matches!(self, Self::Osc1Waveform | Self::Osc2Waveform | Self::FilterType
+        matches!(self, Self::Osc1Waveform | Self::Osc2Waveform | Self::SubWaveform
+            | Self::OscSync | Self::FilterType
             | Self::LfoWaveform | Self::LfoDivision | Self::LfoDest
             | Self::Lfo2Waveform | Self::Lfo2Division | Self::Lfo2Dest)
     }

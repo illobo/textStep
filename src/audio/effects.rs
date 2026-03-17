@@ -839,12 +839,15 @@ impl Oversampler2x {
 pub struct LookaheadLimiter {
     buf_l: Vec<f32>,
     buf_r: Vec<f32>,
+    abs_buf: Vec<f32>, // cached max(|L|, |R|) per position for O(1) peak tracking
     pos: usize,
     len: usize,
     threshold: f32,
     gain: f32,
     attack_coeff: f32,
     release_coeff: f32,
+    running_peak: f32,       // current known peak in the buffer
+    samples_since_scan: u32, // counts down; triggers full rescan when the peak sample exits
 }
 
 impl LookaheadLimiter {
@@ -860,24 +863,43 @@ impl LookaheadLimiter {
         Self {
             buf_l: vec![0.0; len],
             buf_r: vec![0.0; len],
+            abs_buf: vec![0.0; len],
             pos: 0,
             len,
             threshold: 0.95,
             gain: 1.0,
             attack_coeff,
             release_coeff,
+            running_peak: 0.0,
+            samples_since_scan: 0,
         }
     }
 
     /// Process one stereo frame. Returns limited (l, r).
     pub fn tick_stereo(&mut self, in_l: f32, in_r: f32) -> (f32, f32) {
-        // Find peak in lookahead window (scan full buffer)
-        let mut peak = 0.0_f32;
-        for i in 0..self.len {
-            peak = peak.max(self.buf_l[i].abs()).max(self.buf_r[i].abs());
+        let new_abs = in_l.abs().max(in_r.abs());
+
+        // Check if the sample being overwritten was the peak
+        let outgoing_abs = self.abs_buf[self.pos];
+        let needs_rescan = outgoing_abs >= self.running_peak - 1e-10;
+
+        if new_abs >= self.running_peak {
+            // New sample is the new peak — no scan needed
+            self.running_peak = new_abs;
+        } else if needs_rescan {
+            // The outgoing sample was the peak; find the new peak via full scan
+            // This only happens when the loudest sample exits the window
+            let mut peak = new_abs;
+            for i in 0..self.len {
+                if i != self.pos {
+                    peak = peak.max(self.abs_buf[i]);
+                }
+            }
+            self.running_peak = peak;
         }
-        // Also consider incoming samples
-        peak = peak.max(in_l.abs()).max(in_r.abs());
+        // else: running_peak is still valid (outgoing wasn't the peak, new isn't higher)
+
+        let peak = self.running_peak;
 
         // Compute target gain
         let target_gain = if peak > self.threshold {
@@ -900,6 +922,7 @@ impl LookaheadLimiter {
         // Write new input
         self.buf_l[self.pos] = in_l;
         self.buf_r[self.pos] = in_r;
+        self.abs_buf[self.pos] = new_abs;
         self.pos = (self.pos + 1) % self.len;
 
         (out_l, out_r)

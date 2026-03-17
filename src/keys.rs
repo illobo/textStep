@@ -1003,14 +1003,14 @@ fn handle_synth_grid(app: &mut App, key: KeyEvent, synth_id: SynthId) {
 const SYNTH_CTRL_ROWS: [&[SynthControlField]; 3] = [
     // Row 0: OSC1 | OSC2 (side by side visually)
     &[
-        SynthControlField::Osc1Waveform, SynthControlField::Osc1Tune, SynthControlField::Osc1Pwm, SynthControlField::Osc1Level,
-        SynthControlField::Osc2Waveform, SynthControlField::Osc2Tune, SynthControlField::Osc2Pwm, SynthControlField::Osc2Level, SynthControlField::Osc2Detune, SynthControlField::SubLevel,
+        SynthControlField::Osc1Waveform, SynthControlField::Osc1Tune, SynthControlField::Osc1Pwm, SynthControlField::Osc1Level, SynthControlField::Glide,
+        SynthControlField::Osc2Waveform, SynthControlField::Osc2Tune, SynthControlField::Osc2Pwm, SynthControlField::Osc2Level, SynthControlField::Osc2Detune, SynthControlField::SubLevel, SynthControlField::SubWaveform, SynthControlField::OscSync,
     ],
     // Row 1: ENV1 | ENV2 | FILT (side by side visually)
     &[
         SynthControlField::Env1Attack, SynthControlField::Env1Decay, SynthControlField::Env1Sustain, SynthControlField::Env1Release,
         SynthControlField::Env2Attack, SynthControlField::Env2Decay, SynthControlField::Env2Sustain, SynthControlField::Env2Release,
-        SynthControlField::FilterType, SynthControlField::FilterCutoff, SynthControlField::FilterResonance, SynthControlField::FilterEnvAmount, SynthControlField::FilterEnvAttack, SynthControlField::FilterEnvDecay, SynthControlField::FilterEnvSustain, SynthControlField::FilterEnvRelease,
+        SynthControlField::FilterType, SynthControlField::FilterCutoff, SynthControlField::FilterResonance, SynthControlField::FilterEnvAmount, SynthControlField::FilterKeyFollow, SynthControlField::FilterEnvAttack, SynthControlField::FilterEnvDecay, SynthControlField::FilterEnvSustain, SynthControlField::FilterEnvRelease,
     ],
     // Row 2: AMP | LFO1 | LFO2
     &[
@@ -1102,6 +1102,8 @@ fn adjust_synth_field(app: &mut App, synth_id: SynthId, delta: f32) {
         pattern.params.mute = !pattern.params.mute;
     } else if field.is_enum() {
         let max_val: u8 = match field {
+            SynthControlField::OscSync => 1,   // toggle: 0 or 1
+            SynthControlField::SubWaveform => 2, // Sqr/Sin/Saw
             SynthControlField::FilterType => 2,
             SynthControlField::LfoWaveform | SynthControlField::Lfo2Waveform => 2,
             SynthControlField::LfoDivision | SynthControlField::Lfo2Division => 9,

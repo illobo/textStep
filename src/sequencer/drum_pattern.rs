@@ -62,8 +62,8 @@ impl DrumTrackParams {
     pub fn defaults_for(track: DrumTrackId) -> Self {
         match track {
             DrumTrackId::Kick => Self {
-                tune: 0.3, sweep: 0.6, color: 0.2, snap: 0.5,
-                filter: 0.7, drive: 0.15, decay: 0.45, volume: 0.75,
+                tune: 0.3, sweep: 0.6, color: 0.2, snap: 0.45,
+                filter: 0.7, drive: 0.20, decay: 0.45, volume: 0.75,
                 send_reverb: 0.05, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
             },
             DrumTrackId::Snare => Self {

@@ -13,12 +13,20 @@ pub trait DrumVoiceDsp: Send {
 
 /// Soft waveshaping/saturation driven by the drive parameter.
 /// drive=0 is clean, drive=1 is heavy saturation.
+/// Asymmetric clipping: positive side clips harder than negative,
+/// producing even harmonics (2nd, 4th) for analog warmth.
 fn apply_drive(x: f32, drive: f32) -> f32 {
     if drive < 0.001 {
         return x;
     }
     let gain = 1.0 + drive * 8.0;
-    (x * gain).tanh() / gain.tanh()
+    let s = x * gain;
+    let norm = gain.tanh();
+    if s >= 0.0 {
+        s.tanh() / norm
+    } else {
+        (s * 0.8).tanh() * 1.25 / norm
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -226,42 +234,49 @@ impl CombFilter {
 // ===================================================================
 // 1. KickVoice  (TR-909 inspired: sine osc + pitch env + click impulse)
 //
-// Two signal paths summed:
-//   Path A: Sine oscillator → pitch envelope → body amp envelope → LP filter
-//   Path B: Short impulse (DC pulse) → resonant LP filter (~5kHz) → click amp envelope
+// Three signal paths summed:
+//   Path A: Sine oscillator → dual-stage pitch envelope → body amp envelope → LP filter
+//   Path B: Short impulse (DC pulse) → resonant BP/LP filter (~5kHz) → click amp envelope
+//   Path C: Subharmonic (one octave below) for low-end weight
 //
 // Parameters:
 //   tune   — fundamental frequency (30-80 Hz)
 //   sweep  — pitch envelope depth (how far above fundamental the pitch starts)
-//   color  — pitch envelope decay time (fast thump vs slow "zoop")
+//   color  — pitch envelope stage-2 decay time (fast thump vs slow "zoop")
 //   snap   — click/impulse level (the "Attack" knob)
 //   filter — body LP cutoff (500-8000 Hz)
-//   drive  — saturation
+//   drive  — asymmetric saturation
 //   decay  — body amplitude decay (80-600ms)
 // ===================================================================
 pub struct KickVoice {
     sr: f64,
-    // Path A: sine oscillator with pitch envelope
+    // Path A: sine oscillator with dual-stage pitch envelope
     phase: f64,
-    freq_base: f32,       // fundamental (tune)
-    freq_start: f32,      // initial pitch (fundamental + sweep)
-    pitch_env: f32,       // 1→0 pitch envelope
-    pitch_decay: f32,     // per-sample pitch env decay coefficient
-    body_env: f32,        // body amplitude envelope
-    body_decay: f32,      // per-sample body env decay
+    freq_base: f32,         // fundamental (tune)
+    freq_start: f32,        // initial pitch (fundamental + sweep)
+    pitch_env: f32,         // 1→0 pitch envelope
+    pitch_decay: f32,       // per-sample pitch env decay coefficient (current stage)
+    pitch_decay_fast: f32,  // stage-1 coefficient (~2-3ms, always fast)
+    pitch_decay_slow: f32,  // stage-2 coefficient (controlled by color)
+    pitch_stage2: bool,     // true once stage-1 envelope drops below threshold
+    body_env: f32,          // body amplitude envelope
+    body_decay: f32,        // per-sample body env decay
     // Body LP filter
     body_lp: OnePoleLP,
-    // Path B: click impulse → resonant LP filter
-    click_env: f32,       // click amplitude envelope (fixed short decay)
+    // Attack ramp: ~0.5ms linear rise to avoid DC click at onset
+    sample_count: u32,
+    attack_samples: u32,
+    // Path B: click impulse → resonant BP/LP filter
+    click_env: f32,         // click amplitude envelope (fixed short decay)
     click_decay: f32,
-    click_level: f32,     // overall click amplitude (snap)
+    click_level: f32,       // overall click amplitude (snap)
     click_pulse_phase: f64, // low-freq square wave for impulse
-    click_svf: StateVariableFilter, // resonant LP at ~5kHz
+    click_svf: StateVariableFilter, // resonant filter at ~5kHz
     //
     noise: Noise,
     drive: f32,
     active: bool,
-    // Sub-oscillator: one octave below for low-end weight
+    // Subharmonic: one octave below (0.5×) for phase-coherent low-end
     sub_phase: f64,
     sub_freq: f32,
     sub_env: f32,
@@ -277,9 +292,14 @@ impl KickVoice {
             freq_start: 200.0,
             pitch_env: 0.0,
             pitch_decay: 0.0,
+            pitch_decay_fast: 0.0,
+            pitch_decay_slow: 0.0,
+            pitch_stage2: false,
             body_env: 0.0,
             body_decay: 0.0,
             body_lp: OnePoleLP::new(),
+            sample_count: 0,
+            attack_samples: (sr * 0.0005) as u32, // ~0.5ms
             click_env: 0.0,
             click_decay: 0.0,
             click_level: 0.5,
@@ -300,6 +320,7 @@ impl DrumVoiceDsp for KickVoice {
     fn trigger(&mut self, p: &DrumTrackParams) {
         self.phase = 0.0;
         self.click_pulse_phase = 0.0;
+        self.sample_count = 0;
 
         // ── Path A: sine body ────────────────────────────────────────
 
@@ -309,12 +330,15 @@ impl DrumVoiceDsp for KickVoice {
         // sweep: pitch envelope depth (0-300 Hz above fundamental)
         self.freq_start = self.freq_base + p.sweep * 300.0;
 
-        // Pitch envelope: always starts at 1.0, decays to 0 → pitch settles to fundamental
+        // Dual-stage pitch envelope:
+        //   Stage 1: always fast (~2-3ms) — the initial transient "click" pitch
+        //   Stage 2: controlled by color — the body tone forming
         self.pitch_env = 1.0;
-        // color: pitch envelope decay time (5-80ms)
-        // Low color = fast snap (punchy 909), high color = slow pitch glide
-        let pitch_time = 0.005 + p.color as f64 * 0.075;
-        self.pitch_decay = (-5.0_f64 / (pitch_time * self.sr)).exp() as f32;
+        self.pitch_stage2 = false;
+        self.pitch_decay_fast = (-5.0_f64 / (0.0025 * self.sr)).exp() as f32;
+        let pitch_time_slow = 0.010 + p.color as f64 * 0.070;
+        self.pitch_decay_slow = (-5.0_f64 / (pitch_time_slow * self.sr)).exp() as f32;
+        self.pitch_decay = self.pitch_decay_fast; // start in stage 1
 
         // decay: body amplitude envelope (80-600ms)
         let body_time = 0.08 + p.decay as f64 * 0.52;
@@ -335,15 +359,17 @@ impl DrumVoiceDsp for KickVoice {
         self.click_env = 1.0;
         self.click_decay = (-5.0_f64 / (0.004 * self.sr)).exp() as f32;
 
-        // Resonant LP filter on click (~5kHz, resonance ~18%)
+        // Resonant BP/LP filter on click (~5kHz, resonance ~18%)
+        // Using bandpass blend for the sharper "knock" of a 909 bridged-T network
         let click_filter_freq = 4000.0 + p.snap * 2000.0;
         self.click_svf.set_freq(click_filter_freq, 0.18, self.sr);
         self.click_svf.reset();
 
-        // Sub-oscillator: a fourth below the body fundamental (~41 Hz at default)
-        self.sub_freq = self.freq_base * 0.75;
+        // ── Path C: subharmonic (one octave below for phase-coherent low-end) ──
+
+        self.sub_freq = self.freq_base * 0.5; // octave below, not a fourth
         self.sub_phase = 0.0;
-        self.sub_env = 0.35; // subtle reinforcement, not overwhelming
+        self.sub_env = 0.25; // subtle reinforcement
         // Decay tracks body but slightly shorter — support without boom
         self.sub_decay = (-5.0_f64 / ((0.10 + p.decay as f64 * 0.3) * self.sr)).exp() as f32;
 
@@ -356,10 +382,18 @@ impl DrumVoiceDsp for KickVoice {
             return 0.0;
         }
 
+        self.sample_count += 1;
+
         // ── Path A: pitched sine body ──
 
-        // Pitch envelope: cubed for fast initial drop then slow settle
+        // Dual-stage pitch envelope:
+        //   Stage 1 (fast): cubed envelope for sharp transient pitch drop
+        //   Stage 2 (slow): switches once envelope drops below 0.4 for body tone forming
         let pe = self.pitch_env;
+        if !self.pitch_stage2 && pe < 0.4 {
+            self.pitch_stage2 = true;
+            self.pitch_decay = self.pitch_decay_slow;
+        }
         let pitch_shaped = pe * pe * pe;
         let freq = self.freq_base + (self.freq_start - self.freq_base) * pitch_shaped;
         self.pitch_env *= self.pitch_decay;
@@ -370,11 +404,18 @@ impl DrumVoiceDsp for KickVoice {
             self.phase -= 1.0;
         }
         let sine = (self.phase * std::f64::consts::TAU).sin() as f32;
-        // 2nd harmonic for mid-range presence on smaller speakers
-        let harmonic2 = (self.phase * 2.0 * std::f64::consts::TAU).sin() as f32 * 0.25;
+        // 2nd harmonic: amount scales with drive (10-45%) for analog-like behavior
+        let harm_amount = 0.1 + self.drive * 0.35;
+        let harmonic2 = (self.phase * 2.0 * std::f64::consts::TAU).sin() as f32 * harm_amount;
 
         // Body LP filter + envelope
-        let body = self.body_lp.tick(sine + harmonic2) * self.body_env;
+        // Attack ramp: ~0.5ms linear rise to avoid DC click artifact at onset
+        let attack_amp = if self.sample_count < self.attack_samples {
+            self.sample_count as f32 / self.attack_samples as f32
+        } else {
+            1.0
+        };
+        let body = self.body_lp.tick(sine + harmonic2) * self.body_env * attack_amp;
         self.body_env *= self.body_decay;
 
         // ── Path B: click impulse ──
@@ -387,12 +428,15 @@ impl DrumVoiceDsp for KickVoice {
         // Add a tiny bit of noise for texture
         let click_raw = impulse + self.noise.next() * 0.15;
 
-        // Resonant LP filter gives the click its "knock" character
+        // Resonant BP/LP blend for 909 bridged-T "knock" character
+        // BP gives the sharp resonant peak, LP fills out the body
         self.click_svf.tick(click_raw);
-        let click = self.click_svf.lp() * self.click_env * self.click_level;
+        let click = (self.click_svf.bp() * 0.7 + self.click_svf.lp() * 0.3)
+            * self.click_env
+            * self.click_level;
         self.click_env *= self.click_decay;
 
-        // ── Path C: sub-oscillator (a fourth below for chest-hitting low-end) ──
+        // ── Path C: subharmonic (one octave below for phase-coherent low-end) ──
 
         self.sub_phase += self.sub_freq as f64 / self.sr;
         if self.sub_phase >= 1.0 {

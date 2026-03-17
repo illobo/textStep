@@ -18,9 +18,13 @@ const fn sp(
         osc1_waveform, osc1_tune, osc1_pwm, osc1_level,
         osc2_waveform, osc2_tune, osc2_pwm, osc2_level, osc2_detune,
         sub_level,
+        sub_waveform: 0, // Square (default)
         env1_attack: env1_a, env1_decay: env1_d, env1_sustain: env1_s, env1_release: env1_r,
         env2_attack: env2_a, env2_decay: env2_d, env2_sustain: env2_s, env2_release: env2_r,
+        glide: 0.0,
+        osc_sync: 0,
         filter_type, filter_cutoff, filter_resonance, filter_env_amount,
+        filter_key_follow: 0.0,
         filter_env_attack: fenv_a, filter_env_decay: fenv_d, filter_env_sustain: fenv_s, filter_env_release: fenv_r,
         lfo_waveform: 1, lfo_division: 0.47, lfo_depth: 0.0, lfo_dest: 0,
         lfo2_waveform: 0, lfo2_division: 0.47, lfo2_depth: 0.0, lfo2_dest: 2,
@@ -28,6 +32,34 @@ const fn sp(
         send_reverb: 0.2, send_delay: 0.0,
         mute: false,
     }
+}
+
+/// Override glide on a preset
+#[allow(dead_code)]
+const fn with_glide(mut p: SynthParams, glide: f32) -> SynthParams {
+    p.glide = glide;
+    p
+}
+
+/// Override osc sync on a preset
+#[allow(dead_code)]
+const fn with_sync(mut p: SynthParams) -> SynthParams {
+    p.osc_sync = 1;
+    p
+}
+
+/// Override sub waveform on a preset (0=Sqr, 1=Sin, 2=Saw)
+#[allow(dead_code)]
+const fn with_sub_waveform(mut p: SynthParams, wf: u8) -> SynthParams {
+    p.sub_waveform = wf;
+    p
+}
+
+/// Override filter key follow on a preset
+#[allow(dead_code)]
+const fn with_key_follow(mut p: SynthParams, amount: f32) -> SynthParams {
+    p.filter_key_follow = amount;
+    p
 }
 
 /// Override LFO1 settings on a preset

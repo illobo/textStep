@@ -10,29 +10,37 @@ const fn ds(tune: f32, sweep: f32, color: f32, snap: f32, filter: f32, drive: f3
 }
 
 // ── Kick Presets ─────────────────────────────────────────────────────────────
+// Tuned for: dual-stage pitch env (stage1=2.5ms fast, stage2=color-controlled),
+//            subharmonic at 0.5× (octave below), BP/LP click blend,
+//            drive-dependent 2nd harmonic (low drive = less harmonics).
+// Key adjustments vs prior version:
+//   - Raise tune slightly on sub-heavy presets so subharmonic stays audible (>22Hz)
+//   - Bump drive on warm/full presets to compensate for reduced harmonics at low drive
+//   - Ease snap on presets that relied on softer LP click (BP blend is sharper)
+//   - color controls stage-2 only; low values still work but settle phase differs
 
 pub static KICK_PRESETS: &[DrumSoundPreset] = &[
-    // 808 — sub-osc adds low-end, so reduce volume/decay vs original
-    DrumSoundPreset { name: "Deep 808",      category: "808",        voice: DrumTrackId::Kick, params: ds(0.20, 0.65, 0.15, 0.10, 0.55, 0.10, 0.70, 0.78) },
-    DrumSoundPreset { name: "Punchy 808",    category: "808",        voice: DrumTrackId::Kick, params: ds(0.30, 0.55, 0.20, 0.50, 0.70, 0.15, 0.45, 0.75) },
-    DrumSoundPreset { name: "Sub 808",       category: "808",        voice: DrumTrackId::Kick, params: ds(0.15, 0.70, 0.10, 0.05, 0.35, 0.05, 0.80, 0.80) },
-    DrumSoundPreset { name: "Short 808",     category: "808",        voice: DrumTrackId::Kick, params: ds(0.25, 0.50, 0.20, 0.40, 0.60, 0.15, 0.28, 0.75) },
-    // 909 — per-track saturation adds punch, ease drive
-    DrumSoundPreset { name: "Hard 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.35, 0.45, 0.30, 0.60, 0.80, 0.25, 0.40, 0.80) },
-    DrumSoundPreset { name: "Soft 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.30, 0.40, 0.25, 0.30, 0.60, 0.08, 0.45, 0.72) },
-    DrumSoundPreset { name: "Boom 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.25, 0.60, 0.20, 0.45, 0.55, 0.15, 0.55, 0.75) },
-    // Acoustic — tighter decay, sub adds natural weight
-    DrumSoundPreset { name: "Tight Acoustic", category: "Acoustic",  voice: DrumTrackId::Kick, params: ds(0.40, 0.30, 0.35, 0.70, 0.90, 0.12, 0.30, 0.75) },
-    DrumSoundPreset { name: "Jazz Kick",     category: "Acoustic",   voice: DrumTrackId::Kick, params: ds(0.45, 0.20, 0.40, 0.50, 0.70, 0.05, 0.35, 0.68) },
-    // Lo-Fi
-    DrumSoundPreset { name: "Dusty Kick",    category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.30, 0.50, 0.45, 0.35, 0.45, 0.35, 0.50, 0.70) },
-    DrumSoundPreset { name: "Tape Kick",     category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.25, 0.55, 0.50, 0.20, 0.40, 0.45, 0.50, 0.68) },
-    // Industrial — saturation stacks with per-track, ease drive
-    DrumSoundPreset { name: "Distorted Kick", category: "Industrial", voice: DrumTrackId::Kick, params: ds(0.30, 0.65, 0.60, 0.80, 0.90, 0.70, 0.35, 0.80) },
-    DrumSoundPreset { name: "Metal Kick",    category: "Industrial",  voice: DrumTrackId::Kick, params: ds(0.40, 0.75, 0.70, 0.90, 1.00, 0.60, 0.30, 0.75) },
-    // Minimal — short decay tames sub tail
-    DrumSoundPreset { name: "Click Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.35, 0.30, 0.10, 0.80, 0.70, 0.05, 0.18, 0.72) },
-    DrumSoundPreset { name: "Micro Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.40, 0.20, 0.15, 0.60, 0.50, 0.00, 0.12, 0.68) },
+    // 808 — subharmonic at octave below; raise tune so sub stays audible
+    DrumSoundPreset { name: "Deep 808",      category: "808",        voice: DrumTrackId::Kick, params: ds(0.25, 0.65, 0.15, 0.10, 0.55, 0.18, 0.70, 0.78) },
+    DrumSoundPreset { name: "Punchy 808",    category: "808",        voice: DrumTrackId::Kick, params: ds(0.30, 0.55, 0.20, 0.45, 0.70, 0.20, 0.45, 0.75) },
+    DrumSoundPreset { name: "Sub 808",       category: "808",        voice: DrumTrackId::Kick, params: ds(0.22, 0.70, 0.10, 0.05, 0.35, 0.12, 0.80, 0.80) },
+    DrumSoundPreset { name: "Short 808",     category: "808",        voice: DrumTrackId::Kick, params: ds(0.28, 0.50, 0.20, 0.35, 0.60, 0.20, 0.28, 0.75) },
+    // 909 — BP click blend is sharper; ease snap slightly on softer presets
+    DrumSoundPreset { name: "Hard 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.35, 0.45, 0.30, 0.55, 0.80, 0.28, 0.40, 0.80) },
+    DrumSoundPreset { name: "Soft 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.30, 0.40, 0.25, 0.25, 0.60, 0.15, 0.45, 0.72) },
+    DrumSoundPreset { name: "Boom 909",      category: "909",        voice: DrumTrackId::Kick, params: ds(0.28, 0.60, 0.20, 0.40, 0.55, 0.20, 0.55, 0.75) },
+    // Acoustic — bump drive for mid-range body (compensates lower harmonics at low drive)
+    DrumSoundPreset { name: "Tight Acoustic", category: "Acoustic",  voice: DrumTrackId::Kick, params: ds(0.40, 0.30, 0.35, 0.65, 0.90, 0.18, 0.30, 0.75) },
+    DrumSoundPreset { name: "Jazz Kick",     category: "Acoustic",   voice: DrumTrackId::Kick, params: ds(0.45, 0.20, 0.40, 0.45, 0.70, 0.12, 0.35, 0.68) },
+    // Lo-Fi — drive already moderate-high, harmonics naturally present
+    DrumSoundPreset { name: "Dusty Kick",    category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.30, 0.50, 0.45, 0.30, 0.45, 0.35, 0.50, 0.70) },
+    DrumSoundPreset { name: "Tape Kick",     category: "Lo-Fi",      voice: DrumTrackId::Kick, params: ds(0.28, 0.55, 0.50, 0.18, 0.40, 0.45, 0.50, 0.68) },
+    // Industrial — high drive benefits from asymmetric saturation; ease snap for BP blend
+    DrumSoundPreset { name: "Distorted Kick", category: "Industrial", voice: DrumTrackId::Kick, params: ds(0.30, 0.65, 0.60, 0.70, 0.90, 0.70, 0.35, 0.78) },
+    DrumSoundPreset { name: "Metal Kick",    category: "Industrial",  voice: DrumTrackId::Kick, params: ds(0.40, 0.75, 0.70, 0.80, 1.00, 0.60, 0.30, 0.75) },
+    // Minimal — short decay, BP click gives crisper transient; ease snap slightly
+    DrumSoundPreset { name: "Click Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.35, 0.30, 0.10, 0.70, 0.70, 0.10, 0.18, 0.72) },
+    DrumSoundPreset { name: "Micro Kick",    category: "Minimal",    voice: DrumTrackId::Kick, params: ds(0.40, 0.20, 0.15, 0.50, 0.50, 0.05, 0.12, 0.68) },
 ];
 
 // ── Snare Presets ────────────────────────────────────────────────────────────
