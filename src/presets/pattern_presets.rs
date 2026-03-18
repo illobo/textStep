@@ -12,6 +12,67 @@ pub struct PatternPreset {
 // Track order: Kick, Snare, CHH, OHH, Ride, Clap, Cowbell, Tom
 
 pub static PATTERN_PRESETS: &[PatternPreset] = &[
+    // ── Daft Punk ────────────────────────────────────────────────────────
+    // Signature disco-house-electro patterns inspired by Daft Punk productions
+    PatternPreset { name: "Around the World", genre: "Daft Punk",
+        steps: ["88880000", "08080000", "a0a00000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Da Funk", genre: "Daft Punk",
+        steps: ["c8880000", "08080000", "aaaa0000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Revolution 909", genre: "Daft Punk",
+        steps: ["88880000", "00000000", "ffff0000", "00020000", "00000000", "08080000", "00000000", "00000000"] },
+    PatternPreset { name: "One More Time", genre: "Daft Punk",
+        steps: ["88880000", "00000000", "aaaa0000", "01010000", "00000000", "08080000", "00000000", "00000000"] },
+    PatternPreset { name: "Robot Rock", genre: "Daft Punk",
+        steps: ["c8c80000", "08080000", "00000000", "00000000", "aaaa0000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Get Lucky", genre: "Daft Punk",
+        steps: ["82820000", "08080000", "aaaa0000", "04040000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Harder Better", genre: "Daft Punk",
+        steps: ["88880000", "00000000", "ffff0000", "00000000", "00000000", "08080000", "22220000", "00000000"] },
+    PatternPreset { name: "Giorgio", genre: "Daft Punk",
+        steps: ["88880000", "08080000", "ffff0000", "22220000", "00000000", "00000000", "00000000", "00000000"] },
+
+    // ── Basics ──────────────────────────────────────────────────────────
+    // Progressive building blocks: offbeat hats (3,7,11,15) for proper techno feel
+    PatternPreset { name: "Kick Only", genre: "Basics",
+        steps: ["88880000", "00000000", "00000000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Kick + Hat", genre: "Basics",
+        steps: ["88880000", "00000000", "22220000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Kick + Snare", genre: "Basics",
+        steps: ["88880000", "08080000", "00000000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Kick + Clap", genre: "Basics",
+        steps: ["88880000", "00000000", "00000000", "00000000", "00000000", "08080000", "00000000", "00000000"] },
+    PatternPreset { name: "K + S + HH", genre: "Basics",
+        steps: ["88880000", "08080000", "22220000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "K + Clap + HH", genre: "Basics",
+        steps: ["88880000", "00000000", "22220000", "00000000", "00000000", "08080000", "00000000", "00000000"] },
+    PatternPreset { name: "K + S + HH + OH", genre: "Basics",
+        steps: ["88880000", "08080000", "22220000", "04040000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Full Kit", genre: "Basics",
+        steps: ["88880000", "08080000", "22220000", "04040000", "00000000", "08080000", "00000000", "00000000"] },
+
+    // ── Techno II ──────────────────────────────────────────────────────
+    // Clean, functional patterns — offbeat hats for proper techno
+    PatternPreset { name: "Offbeat Hats", genre: "Techno II",
+        steps: ["88880000", "00000000", "00000000", "22220000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Ride Driver", genre: "Techno II",
+        steps: ["88880000", "00000000", "00000000", "00000000", "22220000", "08080000", "00000000", "00000000"] },
+    PatternPreset { name: "Half Time", genre: "Techno II",
+        steps: ["80800000", "00800000", "22220000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Double Kick", genre: "Techno II",
+        steps: ["c8c80000", "08080000", "22220000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Syncopated K", genre: "Techno II",
+        steps: ["a0a00000", "08080000", "22220000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Offbeat Kick", genre: "Techno II",
+        steps: ["82820000", "08080000", "22220000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "808 Cowbell", genre: "Techno II",
+        steps: ["88880000", "00000000", "22220000", "00000000", "00000000", "00000000", "22220000", "00000000"] },
+    PatternPreset { name: "Tom Groove", genre: "Techno II",
+        steps: ["88880000", "00000000", "22220000", "00000000", "00000000", "08080000", "00000000", "22220000"] },
+    PatternPreset { name: "Stripped 16ths", genre: "Techno II",
+        steps: ["88880000", "00000000", "ffff0000", "00000000", "00000000", "08080000", "00000000", "00000000"] },
+    PatternPreset { name: "Perc Stack", genre: "Techno II",
+        steps: ["88880000", "00000000", "22220000", "04040000", "00000000", "08080000", "20200000", "00200020"] },
+
     // ── Techno ───────────────────────────────────────────────────────────
     PatternPreset { name: "Four on the Floor", genre: "Techno",
         steps: ["88880000", "00000000", "aaaa0000", "00000000", "22220000", "08080000", "00000000", "00000000"] },

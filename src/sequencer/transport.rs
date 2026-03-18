@@ -54,7 +54,7 @@ impl Default for Transport {
     fn default() -> Self {
         Self {
             state: PlayState::Stopped,
-            bpm: 120.0,
+            bpm: 121.0,
             record_mode: RecordMode::Off,
             loop_config: LoopConfig::default(),
             swing: 0.50,

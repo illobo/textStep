@@ -651,6 +651,7 @@ impl App {
         let _ = tx.send(UiToAudio::SetDrumPattern(drum_pattern.clone()));
         let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::A, synth_a_pattern.clone()));
         let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::B, synth_b_pattern.clone()));
+        let _ = tx.send(UiToAudio::SetEffectParams(EffectParams::default()));
 
         let mut ui = UiState::default();
         ui.active_pattern = dp;

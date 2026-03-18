@@ -1634,7 +1634,7 @@ dependencies = [
 
 [[package]]
 name = "textstep"
-version = "2.0.1"
+version = "2.2.0"
 dependencies = [
  "cpal",
  "crossbeam-channel",

@@ -586,6 +586,7 @@ fn synth_pattern_from_preset(preset_name: &str, display_name: &str) -> SynthPatt
 /// Create a demo project with 10 pre-filled genre patterns from classic drum programming.
 pub fn demo_project() -> ProjectFile {
     let patterns = vec![
+        pattern_from_preset("Around the World","Around the World 121", 121.0),
         pattern_from_preset("Acid House",      "Acid Techno 138",  138.0),
         pattern_from_preset("Classic House",   "House 122",        122.0),
         pattern_from_preset("Deep House",      "Deep House 120",   120.0),
@@ -595,12 +596,12 @@ pub fn demo_project() -> ProjectFile {
         pattern_from_preset("Amen Break",      "Drum & Bass 174",  174.0),
         pattern_from_preset("Electro Funk",    "Electro 128",      128.0),
         pattern_from_preset("Basic Chain",     "Dub Techno 118",   118.0),
-        pattern_from_preset("Sparse Pulse",    "Ambient 90",        90.0),
     ];
 
     let kits = genre_kits();
 
     let synth_patterns = vec![
+        synth_pattern_from_preset("Around World Bass",   "Daft Punk Bass"),
         synth_pattern_from_preset("Acid Techno Bass 1",  "Acid Techno Bass"),
         synth_pattern_from_preset("House Bass 1",        "House Bass"),
         synth_pattern_from_preset("House Bass 3",        "Deep House Bass"),
@@ -610,19 +611,19 @@ pub fn demo_project() -> ProjectFile {
         synth_pattern_from_preset("Drum & Bass Bass 1",  "DnB Bass"),
         synth_pattern_from_preset("Electro Bass 1",      "Electro Bass"),
         synth_pattern_from_preset("Dub Techno Bass 1",   "Dub Techno Bass"),
-        synth_pattern_from_preset("Ambient Bass 1",      "Ambient Bass"),
     ];
     let synth_kits = vec![
-        synth_kit_from_preset("Wobble Bass",  "Wobble Bass"),    // Kit 0: Acid Techno
-        synth_kit_from_preset("Acid Bass",    "Acid Bass"),      // Kit 1: House
-        synth_kit_from_preset("Reese Bass",   "Reese Bass"),     // Kit 2: Deep House
-        synth_kit_from_preset("Pulse Bass",   "Pulse Bass"),     // Kit 3: Techno
-        synth_kit_from_preset("Sub Bass",     "Sub Bass"),       // Kit 4: Downtempo, Dub Techno
-        synth_kit_from_preset("FM Bass",      "FM Bass"),        // Kit 5: Trance, Ambient (reuse)
-        synth_kit_from_preset("Growl Bass",   "Growl Bass"),     // Kit 6: DnB
-        synth_kit_from_preset("Rubber Bass",  "Rubber Bass"),    // Kit 7: Electro
+        synth_kit_from_preset("Electric Piano", "Electric Piano"), // Kit 0: Around the World
+        synth_kit_from_preset("Wobble Bass",  "Wobble Bass"),    // Kit 1: Acid Techno
+        synth_kit_from_preset("Acid Bass",    "Acid Bass"),      // Kit 2: House
+        synth_kit_from_preset("Reese Bass",   "Reese Bass"),     // Kit 3: Deep House
+        synth_kit_from_preset("Pulse Bass",   "Pulse Bass"),     // Kit 4: Techno
+        synth_kit_from_preset("Sub Bass",     "Sub Bass"),       // Kit 5: Downtempo, Dub Techno
+        synth_kit_from_preset("FM Bass",      "FM Bass"),        // Kit 6: Trance, Ambient (reuse)
+        synth_kit_from_preset("Growl Bass",   "Growl Bass"),     // Kit 7: DnB
     ];
     let synth_b_patterns = vec![
+        synth_pattern_from_preset("Around World Lead",  "Daft Punk Lead"),
         synth_pattern_from_preset("Acid Techno 1",  "Acid Techno Lead"),
         synth_pattern_from_preset("House 1",        "House Keys"),
         synth_pattern_from_preset("House 3",        "Deep House Pad"),
@@ -632,17 +633,16 @@ pub fn demo_project() -> ProjectFile {
         synth_pattern_from_preset("Drum & Bass 1",  "DnB Pluck"),
         synth_pattern_from_preset("Electro 1",      "Electro Lead"),
         synth_pattern_from_preset("Dub Techno 1",   "Dub Techno Pad"),
-        synth_pattern_from_preset("Ambient 1",      "Ambient Bells"),
     ];
     let synth_b_kits = vec![
-        synth_kit_from_preset("Screamer",       "Screamer"),       // Kit 0: Acid Techno
-        synth_kit_from_preset("Electric Piano", "Electric Piano"), // Kit 1: House
-        synth_kit_from_preset("Shimmer Pad",    "Shimmer Pad"),    // Kit 2: Deep House, Dub Techno
-        synth_kit_from_preset("Saw Lead",       "Saw Lead"),       // Kit 3: Techno
-        synth_kit_from_preset("Warm Pad",       "Warm Pad"),       // Kit 4: Downtempo
-        synth_kit_from_preset("Trance Lead",    "Trance Lead"),    // Kit 5: Trance
-        synth_kit_from_preset("Basic Pluck",    "Basic Pluck"),    // Kit 6: DnB, Ambient
-        synth_kit_from_preset("Square Lead",    "Square Lead"),    // Kit 7: Electro
+        synth_kit_from_preset("Acid Bass",      "Acid Bass"),      // Kit 0: Around the World lead
+        synth_kit_from_preset("Screamer",       "Screamer"),       // Kit 1: Acid Techno
+        synth_kit_from_preset("Electric Piano", "Electric Piano"), // Kit 2: House
+        synth_kit_from_preset("Shimmer Pad",    "Shimmer Pad"),    // Kit 3: Deep House, Dub Techno
+        synth_kit_from_preset("Saw Lead",       "Saw Lead"),       // Kit 4: Techno
+        synth_kit_from_preset("Warm Pad",       "Warm Pad"),       // Kit 5: Downtempo
+        synth_kit_from_preset("Trance Lead",    "Trance Lead"),    // Kit 6: Trance
+        synth_kit_from_preset("Basic Pluck",    "Basic Pluck"),    // Kit 7: DnB, Ambient
     ];
 
     ProjectFile {
@@ -656,7 +656,7 @@ pub fn demo_project() -> ProjectFile {
         active_kit: 0,
         patterns,
         active_pattern: 0,
-        bpm: 138.0,
+        bpm: 121.0,
         loop_length: 32,
         swing: 0.50,
         effects: EffectParams::default(),
@@ -669,16 +669,16 @@ pub fn demo_project() -> ProjectFile {
         synth_b_patterns,
         active_synth_b_pattern: 0,
         scenes: vec![
-            Some(Scene { name: "bonza".into(),          drum_pattern: 5, drum_kit: 7, synth_a_pattern: 5, synth_a_kit: 5, synth_b_pattern: 4, synth_b_kit: 5, bpm: 140.0, swing: 0.50 }),
-            Some(Scene { name: "Classic House".into(), drum_pattern: 1, drum_kit: 3, synth_a_pattern: 1, synth_a_kit: 1, synth_b_pattern: 1, synth_b_kit: 1, bpm: 122.0, swing: 0.50 }),
-            Some(Scene { name: "Deep House".into(),    drum_pattern: 2, drum_kit: 3, synth_a_pattern: 2, synth_a_kit: 2, synth_b_pattern: 2, synth_b_kit: 2, bpm: 120.0, swing: 0.50 }),
-            Some(Scene { name: "Driving Techno".into(),drum_pattern: 3, drum_kit: 2, synth_a_pattern: 3, synth_a_kit: 3, synth_b_pattern: 3, synth_b_kit: 3, bpm: 130.0, swing: 0.50 }),
-            Some(Scene { name: "Lo-Fi Hip Hop".into(), drum_pattern: 4, drum_kit: 5, synth_a_pattern: 4, synth_a_kit: 4, synth_b_pattern: 4, synth_b_kit: 4, bpm: 85.0,  swing: 0.50 }),
-            Some(Scene { name: "Trance".into(),        drum_pattern: 5, drum_kit: 1, synth_a_pattern: 5, synth_a_kit: 5, synth_b_pattern: 5, synth_b_kit: 5, bpm: 140.0, swing: 0.50 }),
-            Some(Scene { name: "Drum & Bass".into(),   drum_pattern: 6, drum_kit: 6, synth_a_pattern: 6, synth_a_kit: 6, synth_b_pattern: 6, synth_b_kit: 6, bpm: 174.0, swing: 0.50 }),
-            Some(Scene { name: "Electro Funk".into(),  drum_pattern: 7, drum_kit: 6, synth_a_pattern: 7, synth_a_kit: 7, synth_b_pattern: 7, synth_b_kit: 7, bpm: 128.0, swing: 0.50 }),
-            Some(Scene { name: "Dub Techno".into(),    drum_pattern: 8, drum_kit: 2, synth_a_pattern: 8, synth_a_kit: 4, synth_b_pattern: 8, synth_b_kit: 2, bpm: 118.0, swing: 0.50 }),
-            Some(Scene { name: "Ambient".into(),       drum_pattern: 9, drum_kit: 7, synth_a_pattern: 9, synth_a_kit: 5, synth_b_pattern: 9, synth_b_kit: 6, bpm: 90.0,  swing: 0.50 }),
+            Some(Scene { name: "Around the World".into(), drum_pattern: 0, drum_kit: 0, synth_a_pattern: 0, synth_a_kit: 0, synth_b_pattern: 0, synth_b_kit: 0, bpm: 121.0, swing: 0.50 }),
+            Some(Scene { name: "Acid Techno".into(),   drum_pattern: 1, drum_kit: 0, synth_a_pattern: 1, synth_a_kit: 1, synth_b_pattern: 1, synth_b_kit: 1, bpm: 138.0, swing: 0.50 }),
+            Some(Scene { name: "Classic House".into(), drum_pattern: 2, drum_kit: 3, synth_a_pattern: 2, synth_a_kit: 2, synth_b_pattern: 2, synth_b_kit: 2, bpm: 122.0, swing: 0.50 }),
+            Some(Scene { name: "Deep House".into(),    drum_pattern: 3, drum_kit: 3, synth_a_pattern: 3, synth_a_kit: 3, synth_b_pattern: 3, synth_b_kit: 3, bpm: 120.0, swing: 0.50 }),
+            Some(Scene { name: "Driving Techno".into(),drum_pattern: 4, drum_kit: 2, synth_a_pattern: 4, synth_a_kit: 4, synth_b_pattern: 4, synth_b_kit: 4, bpm: 130.0, swing: 0.50 }),
+            Some(Scene { name: "Lo-Fi Hip Hop".into(), drum_pattern: 5, drum_kit: 5, synth_a_pattern: 5, synth_a_kit: 5, synth_b_pattern: 5, synth_b_kit: 5, bpm: 85.0,  swing: 0.50 }),
+            Some(Scene { name: "Trance".into(),        drum_pattern: 6, drum_kit: 1, synth_a_pattern: 6, synth_a_kit: 6, synth_b_pattern: 6, synth_b_kit: 6, bpm: 140.0, swing: 0.50 }),
+            Some(Scene { name: "Drum & Bass".into(),   drum_pattern: 7, drum_kit: 6, synth_a_pattern: 7, synth_a_kit: 7, synth_b_pattern: 7, synth_b_kit: 7, bpm: 174.0, swing: 0.50 }),
+            Some(Scene { name: "Electro Funk".into(),  drum_pattern: 8, drum_kit: 6, synth_a_pattern: 8, synth_a_kit: 1, synth_b_pattern: 8, synth_b_kit: 2, bpm: 128.0, swing: 0.50 }),
+            Some(Scene { name: "Dub Techno".into(),    drum_pattern: 9, drum_kit: 2, synth_a_pattern: 9, synth_a_kit: 5, synth_b_pattern: 9, synth_b_kit: 3, bpm: 118.0, swing: 0.50 }),
         ],
     }
 }
@@ -1208,9 +1208,9 @@ mod demo_tests {
     #[test]
     fn demo_patterns_have_bpm() {
         let proj = demo_project();
-        assert!((proj.patterns[0].bpm - 138.0).abs() < 0.01); // Acid Techno
-        assert!((proj.patterns[6].bpm - 174.0).abs() < 0.01); // D&B
-        assert!((proj.patterns[9].bpm -  90.0).abs() < 0.01); // Ambient
+        assert!((proj.patterns[0].bpm - 121.0).abs() < 0.01); // Around the World
+        assert!((proj.patterns[7].bpm - 174.0).abs() < 0.01); // D&B
+        assert!((proj.patterns[9].bpm - 118.0).abs() < 0.01); // Dub Techno
     }
 
     #[test]
@@ -1228,8 +1228,8 @@ mod demo_tests {
         assert_eq!(proj.synth_kits.len(), NUM_KITS);
         assert_eq!(proj.synth_b_kits.len(), NUM_KITS);
         // Verify kits have named presets (not default names)
-        assert_eq!(proj.synth_kits[0].name, "Wobble Bass");
-        assert_eq!(proj.synth_b_kits[0].name, "Screamer");
+        assert_eq!(proj.synth_kits[0].name, "Electric Piano");
+        assert_eq!(proj.synth_b_kits[0].name, "Acid Bass");
     }
 
     #[test]
@@ -1253,9 +1253,9 @@ mod demo_tests {
         let json = serde_json::to_string(&proj).unwrap();
         let loaded: ProjectFile = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.patterns.len(), 10);
-        assert_eq!(loaded.patterns[0].name, "Acid Techno 138");
-        assert!((loaded.patterns[0].bpm - 138.0).abs() < 0.01);
-        assert_eq!(loaded.synth_kits[0].name, "Wobble Bass");
+        assert_eq!(loaded.patterns[0].name, "Around the World 121");
+        assert!((loaded.patterns[0].bpm - 121.0).abs() < 0.01);
+        assert_eq!(loaded.synth_kits[0].name, "Electric Piano");
     }
 
     /// Render all genre kit voices to WAV files for auditioning.

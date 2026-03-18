@@ -99,7 +99,11 @@ impl SynthInstance {
             lfo2: Lfo::new(),
             saturator: TubeSaturator::new(sample_rate as f32),
             reverb: ReverbEffect::new(sample_rate),
-            delay: DelayEffect::new(),
+            delay: {
+                let mut d = DelayEffect::new();
+                d.set_warm_mode(true); // synth delays: HP + saturation for character
+                d
+            },
         }
     }
 }
@@ -148,13 +152,7 @@ impl AudioEngine {
         let mut drum_reverb = FdnReverb::new(sample_rate);
         let mut drum_delay = DelayEffect::new();
         drum_reverb.set_params(effect_params.reverb_amount, effect_params.reverb_damping);
-        drum_delay.set_params(
-            effect_params.delay_time,
-            effect_params.delay_feedback,
-            effect_params.delay_tone,
-            120.0,
-            sample_rate,
-        );
+        drum_delay.set_single_knob(effect_params.delay_time, 120.0, sample_rate);
 
         let compressor = GlueCompressor::new(sample_rate);
         let mut crush_compressor = GlueCompressor::new(sample_rate);
@@ -206,14 +204,10 @@ impl AudioEngine {
                     }
                     // Update delay time when BPM changes
                     if bpm_changed {
-                        let ep = &self.effect_params;
-                        self.drum_delay.set_params(
-                            ep.delay_time,
-                            ep.delay_feedback,
-                            ep.delay_tone,
-                            self.transport.bpm,
-                            self.sample_rate,
-                        );
+                        let dt = self.effect_params.delay_time;
+                        self.drum_delay.set_single_knob(dt, self.transport.bpm, self.sample_rate);
+                        self.synth_a.delay.set_single_knob(dt, self.transport.bpm, self.sample_rate);
+                        self.synth_b.delay.set_single_knob(dt, self.transport.bpm, self.sample_rate);
                     }
                 }
                 UiToAudio::SetDrumPattern(p) => {
@@ -235,12 +229,8 @@ impl AudioEngine {
                     self.effect_params = ep;
                     self.drum_reverb
                         .set_params(ep.reverb_amount, ep.reverb_damping);
-                    self.drum_delay.set_params(
-                        ep.delay_time,
-                        ep.delay_feedback,
-                        ep.delay_tone,
-                        self.transport.bpm,
-                        self.sample_rate,
+                    self.drum_delay.set_single_knob(
+                        ep.delay_time, self.transport.bpm, self.sample_rate,
                     );
                     self.compressor
                         .set_amount(ep.compressor_amount, self.sample_rate);
@@ -249,6 +239,12 @@ impl AudioEngine {
                     self.drum_saturator.set_drive(ep.drum_saturator_drive);
                     self.synth_a.saturator.set_drive(ep.synth_saturator_drive);
                     self.synth_b.saturator.set_drive(ep.synth_saturator_drive);
+                    self.synth_a.delay.set_single_knob(
+                        ep.delay_time, self.transport.bpm, self.sample_rate,
+                    );
+                    self.synth_b.delay.set_single_knob(
+                        ep.delay_time, self.transport.bpm, self.sample_rate,
+                    );
                 }
                 UiToAudio::TriggerDrum(track_id) => {
                     let track = track_id as usize;
@@ -560,10 +556,13 @@ impl AudioEngine {
                 1.0
             };
 
-            // Apply crossfader gain: center (0.5) = both full, extremes fade one out
+            // Apply crossfader gain: constant-power (Octatrack-style) cosine curve.
+            // Center (0.5) = both at ~0.707 (−3dB), extremes = one full / one silent.
+            // Total power stays constant across the full range — no volume dip.
             let xf = self.crossfader;
-            let gain_a = if xf <= 0.5 { 1.0 } else { 2.0 * (1.0 - xf) };
-            let gain_b = if xf >= 0.5 { 1.0 } else { 2.0 * xf };
+            let angle = xf * std::f32::consts::FRAC_PI_2;
+            let gain_a = angle.cos();
+            let gain_b = angle.sin();
 
             // Stereo mix: synths panned slightly to opposite sides, ducked by kick
             // Synth A slightly left (pan ~0.38), Synth B slightly right (pan ~0.62)

@@ -224,6 +224,7 @@ const DELAY_BUF_SIZE: usize = 131072; // ~2.7s at 48kHz
 
 /// Musical subdivision for delay time.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
 pub enum DelaySub {
     Sixteenth,         // 1/16
     SixteenthDotted,   // 1/16D
@@ -235,19 +236,20 @@ pub enum DelaySub {
     QuarterDotted,     // 1/4D
     HalfTriplet,       // 1/2T
     Half,              // 1/2
+    Whole,             // 2/1 (two beats = half bar)
 }
 
-pub const DELAY_SUBS: [DelaySub; 10] = [
-    DelaySub::Sixteenth,
-    DelaySub::SixteenthDotted,
-    DelaySub::EighthTriplet,
-    DelaySub::Eighth,
-    DelaySub::EighthDotted,
-    DelaySub::QuarterTriplet,
-    DelaySub::Quarter,
-    DelaySub::QuarterDotted,
-    DelaySub::HalfTriplet,
-    DelaySub::Half,
+/// Musical divisions: straight + dotted for polyrhythmic interest.
+pub const DELAY_SUBS: [DelaySub; 9] = [
+    DelaySub::Sixteenth,        // 0.00-0.11  — tight slapback
+    DelaySub::SixteenthDotted,  // 0.11-0.22  — dotted 1/16 bounce
+    DelaySub::Eighth,           // 0.22-0.33  — straight 1/8
+    DelaySub::EighthDotted,     // 0.33-0.44  — dotted 1/8 (classic!)
+    DelaySub::Quarter,          // 0.44-0.55  — straight 1/4
+    DelaySub::QuarterDotted,    // 0.55-0.66  — dotted 1/4
+    DelaySub::Half,             // 0.66-0.77  — spacious 1/2
+    DelaySub::Whole,            // 0.77-0.88  — full bar echo
+    DelaySub::Whole,            // 0.88-1.00  — full bar + high feedback (infinite)
 ];
 
 impl DelaySub {
@@ -271,6 +273,7 @@ impl DelaySub {
             DelaySub::QuarterDotted =>   beat * 1.5,
             DelaySub::HalfTriplet =>     beat * 4.0 / 3.0,
             DelaySub::Half =>            beat * 2.0,
+            DelaySub::Whole =>           beat * 4.0,
         }
     }
 
@@ -288,6 +291,7 @@ impl DelaySub {
             DelaySub::QuarterDotted =>   "1/4D",
             DelaySub::HalfTriplet =>     "1/2T",
             DelaySub::Half =>            "1/2",
+            DelaySub::Whole =>           "2/1",
         }
     }
 }
@@ -297,10 +301,17 @@ pub struct DelayEffect {
     write_pos: usize,
     delay_samples: usize,
     feedback: f32,
-    // One-pole LP in feedback loop
+    // One-pole LP in feedback loop (darkening repeats)
     lp_state: f32,
-    lp_coeff: f32, // alpha
+    lp_coeff: f32,
+    // One-pole HP in feedback loop (thinning low-end buildup) — synth mode only
+    hp_state: f32,
+    hp_prev_in: f32,
+    hp_coeff: f32,
     wet: f32,
+    /// When true, feedback uses HP filter + saturation (musical for synths).
+    /// When false, feedback is clean LP-only (transparent for drums).
+    warm_mode: bool,
 }
 
 impl DelayEffect {
@@ -308,33 +319,82 @@ impl DelayEffect {
         Self {
             buf: Box::new([0.0; DELAY_BUF_SIZE]),
             write_pos: 0,
-            delay_samples: 22050, // ~0.5s default
+            delay_samples: 22050,
             feedback: 0.4,
             lp_state: 0.0,
             lp_coeff: 0.5,
+            hp_state: 0.0,
+            hp_prev_in: 0.0,
+            hp_coeff: 0.995,
             wet: 0.3,
+            warm_mode: false, // default: clean/transparent (drums)
         }
     }
 
-    /// Update delay parameters.
+    /// Enable warm mode: HP filter + saturation in feedback (better for synths).
+    /// Default is clean mode (LP-only feedback, better for drums).
+    pub fn set_warm_mode(&mut self, warm: bool) {
+        self.warm_mode = warm;
+    }
+
+    /// Update delay parameters (individual control).
     /// time: 0-1 (selects subdivision), feedback: 0-1, tone: 0-1 (LP cutoff in feedback).
+    #[allow(dead_code)]
     pub fn set_params(&mut self, time: f32, feedback: f32, tone: f32, bpm: f64, sample_rate: f64) {
         let sub = DelaySub::from_param(time);
         let delay_sec = sub.seconds(bpm);
         self.delay_samples = ((delay_sec * sample_rate) as usize).min(DELAY_BUF_SIZE - 1).max(1);
-        self.feedback = feedback.min(0.95);
-        self.wet = 0.4 + feedback * 0.4; // wet scales with feedback
+        self.feedback = feedback.min(0.80);
+        self.wet = 0.45;
 
-        // LP cutoff: 1000-12000 Hz mapped from tone
-        let freq = 1000.0 + tone as f64 * 11000.0;
+        // LP cutoff: 800-10000 Hz mapped from tone
+        let freq = 800.0 + tone as f64 * 9200.0;
         let rc = 1.0 / (2.0 * std::f64::consts::PI * freq);
         let dt = 1.0 / sample_rate;
         self.lp_coeff = (dt / (rc + dt)) as f32;
+
+        // HP at ~60 Hz — tighter than 30Hz, removes more mud (Octatrack-style)
+        let hp_freq = 60.0_f64;
+        let hp_rc = 1.0 / (2.0 * std::f64::consts::PI * hp_freq);
+        self.hp_coeff = (hp_rc / (hp_rc + dt)) as f32;
+    }
+
+    /// Single-knob delay macro: one 0-1 knob controls time, feedback, tone, and wet.
+    /// Beat-locked subdivisions including dotted for polyrhythmic bounce.
+    ///   0.0        = off
+    ///   →1/16 → 1/16D → 1/8 → 1/8D → 1/4 → 1/4D → 1/2 → 2/1 → 2/1∞
+    ///   Last zone (>0.88) pushes feedback to 0.95 for near-infinite repeats.
+    pub fn set_single_knob(&mut self, amount: f32, bpm: f64, sample_rate: f64) {
+        // Snap to subdivision via the DELAY_SUBS table
+        // amount near 0 → shortest subdivision (1/16), not silence
+        let sub = DelaySub::from_param(amount.max(0.01));
+        let delay_sec = sub.seconds(bpm);
+        self.delay_samples = ((delay_sec * sample_rate) as usize).min(DELAY_BUF_SIZE - 1).max(1);
+
+        // Feedback: 0.30 (slapback) → 0.65 (spacious), last zone pushes to 0.95 (infinite)
+        self.feedback = if amount > 0.88 {
+            0.95
+        } else {
+            (0.30 + amount * 0.40).min(0.65)
+        };
+
+        // Wet: moderate, let send_delay control the balance
+        self.wet = 0.45 + amount * 0.15;
+
+        // Tone: bright at low amounts, darker at high (LP cutoff 9kHz → 2kHz)
+        let tone_freq = 9000.0 - amount as f64 * 7000.0;
+        let rc = 1.0 / (2.0 * std::f64::consts::PI * tone_freq);
+        let dt = 1.0 / sample_rate;
+        self.lp_coeff = (dt / (rc + dt)) as f32;
+
+        // HP at ~60 Hz
+        let hp_rc = 1.0 / (2.0 * std::f64::consts::PI * 60.0_f64);
+        self.hp_coeff = (hp_rc / (hp_rc + dt)) as f32;
     }
 
     /// Process one sample of delay input, return wet output.
     pub fn tick(&mut self, input: f32) -> f32 {
-        // Read from delay line
+        // Exact integer read position — tight tempo lock, no modulation
         let read_pos = if self.write_pos >= self.delay_samples {
             self.write_pos - self.delay_samples
         } else {
@@ -343,11 +403,23 @@ impl DelayEffect {
 
         let delayed = self.buf[read_pos];
 
-        // LP filter on feedback
+        // LP filter in feedback loop (each repeat gets darker)
         self.lp_state += self.lp_coeff * (delayed - self.lp_state);
 
-        // Write input + filtered feedback
-        self.buf[self.write_pos] = input + self.lp_state * self.feedback;
+        let saturated = if self.warm_mode {
+            // Warm mode (synths): HP filter + saturation for musical character
+            let hp_out = self.hp_coeff * (self.hp_state + self.lp_state - self.hp_prev_in);
+            self.hp_prev_in = self.lp_state;
+            self.hp_state = hp_out;
+            let sat_in = hp_out * self.feedback;
+            (sat_in * 1.5).tanh() / 1.5_f32.tanh()
+        } else {
+            // Clean mode (drums): LP-only, transparent repeats preserving transients
+            self.lp_state * self.feedback
+        };
+
+        // Write input + processed feedback
+        self.buf[self.write_pos] = input + saturated;
         self.write_pos = (self.write_pos + 1) % DELAY_BUF_SIZE;
 
         delayed * self.wet
@@ -978,6 +1050,34 @@ impl SidechainEnvelope {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn delay_produces_output() {
+        let sr = 44100.0;
+        let mut delay = DelayEffect::new();
+        delay.set_single_knob(0.5, 120.0, sr); // quarter note at 120 = 22050 samples
+
+        // Feed a loud impulse for 100 samples (simulating a kick)
+        for _ in 0..100 {
+            delay.tick(0.8);
+        }
+        // Feed silence until the delay tap
+        let mut max_before = 0.0_f32;
+        for _ in 100..22050 {
+            let out = delay.tick(0.0);
+            max_before = max_before.max(out.abs());
+        }
+        // Now read the delayed output (samples 22050-22200)
+        let mut max_delayed = 0.0_f32;
+        for _ in 0..200 {
+            let out = delay.tick(0.0);
+            max_delayed = max_delayed.max(out.abs());
+        }
+        eprintln!("delay test: max_before_tap={max_before:.4}, max_after_tap={max_delayed:.4}");
+        eprintln!("  delay_samples={}, feedback={}, wet={}", delay.delay_samples, delay.feedback, delay.wet);
+        assert!(max_before < 0.01, "should be silent before delay tap, got {max_before}");
+        assert!(max_delayed > 0.05, "should hear delayed output, got {max_delayed}");
+    }
 
     #[test]
     fn test_ramped_param_instant_set() {

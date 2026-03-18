@@ -242,7 +242,8 @@ impl CombFilter {
 // Parameters:
 //   tune   — fundamental frequency (30-80 Hz)
 //   sweep  — pitch envelope depth (how far above fundamental the pitch starts)
-//   color  — pitch envelope stage-2 decay time (fast thump vs slow "zoop")
+//   color  — timbre morph: dark/subby (0) → bright/snappy (1)
+//            affects: pitch env stage-2 decay, click brightness, harmonics, sub level
 //   snap   — click/impulse level (the "Attack" knob)
 //   filter — body LP cutoff (500-8000 Hz)
 //   drive  — asymmetric saturation
@@ -275,6 +276,7 @@ pub struct KickVoice {
     //
     noise: Noise,
     drive: f32,
+    color: f32,  // cached for tick(): timbre morph (dark/subby → bright/snappy)
     active: bool,
     // Subharmonic: one octave below (0.5×) for phase-coherent low-end
     sub_phase: f64,
@@ -307,6 +309,7 @@ impl KickVoice {
             click_svf: StateVariableFilter::new(),
             noise: Noise::new(42),
             drive: 0.0,
+            color: 0.0,
             active: false,
             sub_phase: 0.0,
             sub_freq: 0.0,
@@ -327,16 +330,17 @@ impl DrumVoiceDsp for KickVoice {
         // tune: fundamental freq 30-80 Hz
         self.freq_base = 30.0 + p.tune * 50.0;
 
-        // sweep: pitch envelope depth (0-300 Hz above fundamental)
-        self.freq_start = self.freq_base + p.sweep * 300.0;
+        // sweep: pitch envelope depth (0-500 Hz above fundamental)
+        self.freq_start = self.freq_base + p.sweep * 500.0;
 
         // Dual-stage pitch envelope:
-        //   Stage 1: always fast (~2-3ms) — the initial transient "click" pitch
+        //   Stage 1: always fast (~2.5ms) — the initial transient "click" pitch
         //   Stage 2: controlled by color — the body tone forming
+        //   Color 0 → 5ms (tight thump), Color 1 → 200ms (long "zoop")
         self.pitch_env = 1.0;
         self.pitch_stage2 = false;
         self.pitch_decay_fast = (-5.0_f64 / (0.0025 * self.sr)).exp() as f32;
-        let pitch_time_slow = 0.010 + p.color as f64 * 0.070;
+        let pitch_time_slow = 0.005 + p.color as f64 * 0.195;
         self.pitch_decay_slow = (-5.0_f64 / (pitch_time_slow * self.sr)).exp() as f32;
         self.pitch_decay = self.pitch_decay_fast; // start in stage 1
 
@@ -345,8 +349,9 @@ impl DrumVoiceDsp for KickVoice {
         self.body_env = 1.0;
         self.body_decay = (-5.0_f64 / (body_time * self.sr)).exp() as f32;
 
-        // filter: body LP (500-8000 Hz)
-        let lp_freq = 500.0 + p.filter * 7500.0;
+        // filter: body LP (500-8000 Hz), color opens it further (+2kHz at max)
+        let color_lp_boost = p.color * 2000.0;
+        let lp_freq = (500.0 + p.filter * 7500.0 + color_lp_boost).min(12000.0);
         self.body_lp.set_freq(lp_freq, self.sr);
         self.body_lp.prev_out = 0.0;
 
@@ -359,21 +364,25 @@ impl DrumVoiceDsp for KickVoice {
         self.click_env = 1.0;
         self.click_decay = (-5.0_f64 / (0.004 * self.sr)).exp() as f32;
 
-        // Resonant BP/LP filter on click (~5kHz, resonance ~18%)
-        // Using bandpass blend for the sharper "knock" of a 909 bridged-T network
-        let click_filter_freq = 4000.0 + p.snap * 2000.0;
-        self.click_svf.set_freq(click_filter_freq, 0.18, self.sr);
+        // Resonant BP/LP filter on click — color sweeps from dark muffled to bright snappy
+        //   Color 0 → 2kHz (warm thud), Color 1 → 7kHz (sharp click)
+        //   Resonance also increases with color for more "ping"
+        let click_filter_freq = 2000.0 + p.color * 5000.0 + p.snap * 1000.0;
+        let click_reso = 0.10 + p.color * 0.20;
+        self.click_svf.set_freq(click_filter_freq, click_reso, self.sr);
         self.click_svf.reset();
 
         // ── Path C: subharmonic (one octave below for phase-coherent low-end) ──
 
         self.sub_freq = self.freq_base * 0.5; // octave below, not a fourth
         self.sub_phase = 0.0;
-        self.sub_env = 0.25; // subtle reinforcement
+        // Color 0 → heavy sub (0.35), Color 1 → minimal sub (0.10)
+        self.sub_env = 0.35 - p.color * 0.25;
         // Decay tracks body but slightly shorter — support without boom
         self.sub_decay = (-5.0_f64 / ((0.10 + p.decay as f64 * 0.3) * self.sr)).exp() as f32;
 
         self.drive = p.drive;
+        self.color = p.color;
         self.active = true;
     }
 
@@ -387,14 +396,14 @@ impl DrumVoiceDsp for KickVoice {
         // ── Path A: pitched sine body ──
 
         // Dual-stage pitch envelope:
-        //   Stage 1 (fast): cubed envelope for sharp transient pitch drop
-        //   Stage 2 (slow): switches once envelope drops below 0.4 for body tone forming
+        //   Stage 1 (fast): squared envelope for transient pitch drop
+        //   Stage 2 (slow): switches at 0.55 so color engages while pitch is still meaningful
         let pe = self.pitch_env;
-        if !self.pitch_stage2 && pe < 0.4 {
+        if !self.pitch_stage2 && pe < 0.55 {
             self.pitch_stage2 = true;
             self.pitch_decay = self.pitch_decay_slow;
         }
-        let pitch_shaped = pe * pe * pe;
+        let pitch_shaped = pe * pe;
         let freq = self.freq_base + (self.freq_start - self.freq_base) * pitch_shaped;
         self.pitch_env *= self.pitch_decay;
 
@@ -404,8 +413,9 @@ impl DrumVoiceDsp for KickVoice {
             self.phase -= 1.0;
         }
         let sine = (self.phase * std::f64::consts::TAU).sin() as f32;
-        // 2nd harmonic: amount scales with drive (10-45%) for analog-like behavior
-        let harm_amount = 0.1 + self.drive * 0.35;
+        // 2nd harmonic: amount scales with drive AND color
+        // Color 0 → clean sine (5%), Color 1 → rich harmonics (up to 50% with drive)
+        let harm_amount = 0.05 + self.color * 0.20 + self.drive * 0.25;
         let harmonic2 = (self.phase * 2.0 * std::f64::consts::TAU).sin() as f32 * harm_amount;
 
         // Body LP filter + envelope
@@ -1719,4 +1729,61 @@ pub fn create_drum_voices(sample_rate: f64) -> [Box<dyn DrumVoiceDsp>; 8] {
         Box::new(CowbellVoice::new(sample_rate)),
         Box::new(TomVoice::new(sample_rate)),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sequencer::drum_pattern::DrumTrackParams;
+
+    fn make_kick_params(sweep: f32, color: f32) -> DrumTrackParams {
+        DrumTrackParams {
+            tune: 0.3, sweep, color, snap: 0.45,
+            filter: 0.7, drive: 0.20, decay: 0.45, volume: 0.75,
+            send_reverb: 0.0, send_delay: 0.0, pan: 0.5,
+            mute: false, solo: false,
+        }
+    }
+
+    fn generate_kick(sweep: f32, color: f32, num_samples: usize) -> Vec<f32> {
+        let mut voice = KickVoice::new(44100.0);
+        let params = make_kick_params(sweep, color);
+        voice.trigger(&params);
+        (0..num_samples).map(|_| voice.tick()).collect()
+    }
+
+    fn rms_diff(a: &[f32], b: &[f32]) -> f32 {
+        let sum: f32 = a.iter().zip(b).map(|(x, y)| (x - y).powi(2)).sum();
+        (sum / a.len() as f32).sqrt()
+    }
+
+    #[test]
+    fn sweep_affects_waveform() {
+        let lo = generate_kick(0.0, 0.2, 4410);
+        let hi = generate_kick(1.0, 0.2, 4410);
+        let diff = rms_diff(&lo, &hi);
+        eprintln!("sweep RMS diff: {diff}");
+        assert!(diff > 0.01, "sweep should change waveform, got RMS diff {diff}");
+    }
+
+    #[test]
+    fn color_affects_waveform() {
+        let lo = generate_kick(0.6, 0.0, 4410);
+        let hi = generate_kick(0.6, 1.0, 4410);
+        let diff = rms_diff(&lo, &hi);
+        eprintln!("color RMS diff: {diff}");
+        assert!(diff > 0.01, "color should change waveform, got RMS diff {diff}");
+    }
+
+    #[test]
+    fn print_sample_comparison() {
+        let a = generate_kick(0.6, 0.0, 200);
+        let b = generate_kick(0.6, 1.0, 200);
+        eprintln!("\n--- color=0.0 vs color=1.0 (divergent samples) ---");
+        for i in 0..200 {
+            if (a[i] - b[i]).abs() > 0.001 {
+                eprintln!("  [{i:3}] c0={:.5} c1={:.5} d={:.5}", a[i], b[i], a[i] - b[i]);
+            }
+        }
+    }
 }

@@ -12,12 +12,12 @@ const fn ds(tune: f32, sweep: f32, color: f32, snap: f32, filter: f32, drive: f3
 // ── Kick Presets ─────────────────────────────────────────────────────────────
 // Tuned for: dual-stage pitch env (stage1=2.5ms fast, stage2=color-controlled),
 //            subharmonic at 0.5× (octave below), BP/LP click blend,
-//            drive-dependent 2nd harmonic (low drive = less harmonics).
-// Key adjustments vs prior version:
-//   - Raise tune slightly on sub-heavy presets so subharmonic stays audible (>22Hz)
-//   - Bump drive on warm/full presets to compensate for reduced harmonics at low drive
-//   - Ease snap on presets that relied on softer LP click (BP blend is sharper)
-//   - color controls stage-2 only; low values still work but settle phase differs
+//            drive+color-dependent 2nd harmonic.
+// Color is now a full timbre knob: dark/subby (0) → bright/snappy (1).
+//   - Pitch stage-2 decay: 5ms (color=0) → 200ms (color=1)
+//   - Click filter: 2kHz (warm) → 7kHz (sharp)
+//   - Sub level: 0.35 (heavy) → 0.10 (minimal)
+//   - 2nd harmonic: 5% (clean) → 25% + drive contribution
 
 pub static KICK_PRESETS: &[DrumSoundPreset] = &[
     // 808 — subharmonic at octave below; raise tune so sub stays audible
@@ -95,12 +95,12 @@ pub static OHH_PRESETS: &[DrumSoundPreset] = &[
 // ── Ride Presets ─────────────────────────────────────────────────────────────
 
 pub static RIDE_PRESETS: &[DrumSoundPreset] = &[
-    DrumSoundPreset { name: "Bell Ride",     category: "Acoustic",   voice: DrumTrackId::Ride, params: ds(0.60, 0.00, 0.40, 0.20, 0.50, 0.00, 0.75, 0.60) },
-    DrumSoundPreset { name: "Ping Ride",     category: "Acoustic",   voice: DrumTrackId::Ride, params: ds(0.70, 0.00, 0.30, 0.40, 0.65, 0.00, 0.60, 0.55) },
-    DrumSoundPreset { name: "Dark Ride",     category: "Lo-Fi",      voice: DrumTrackId::Ride, params: ds(0.40, 0.00, 0.55, 0.10, 0.35, 0.20, 0.80, 0.55) },
-    DrumSoundPreset { name: "Crash",         category: "Acoustic",   voice: DrumTrackId::Ride, params: ds(0.45, 0.10, 0.60, 0.30, 0.55, 0.10, 0.90, 0.65) },
-    DrumSoundPreset { name: "Metal Ride",    category: "Industrial", voice: DrumTrackId::Ride, params: ds(0.55, 0.05, 0.70, 0.50, 0.75, 0.40, 0.65, 0.60) },
-    DrumSoundPreset { name: "Thin Ride",     category: "Minimal",    voice: DrumTrackId::Ride, params: ds(0.65, 0.00, 0.25, 0.15, 0.50, 0.00, 0.50, 0.50) },
+    DrumSoundPreset { name: "Bell Ride",     category: "Acoustic",   voice: DrumTrackId::Ride, params: ds(0.60, 0.00, 0.40, 0.20, 0.50, 0.00, 0.50, 0.60) },
+    DrumSoundPreset { name: "Ping Ride",     category: "Acoustic",   voice: DrumTrackId::Ride, params: ds(0.70, 0.00, 0.30, 0.40, 0.65, 0.00, 0.40, 0.55) },
+    DrumSoundPreset { name: "Dark Ride",     category: "Lo-Fi",      voice: DrumTrackId::Ride, params: ds(0.40, 0.00, 0.55, 0.10, 0.35, 0.20, 0.53, 0.55) },
+    DrumSoundPreset { name: "Crash",         category: "Acoustic",   voice: DrumTrackId::Ride, params: ds(0.45, 0.10, 0.60, 0.30, 0.55, 0.10, 0.60, 0.65) },
+    DrumSoundPreset { name: "Metal Ride",    category: "Industrial", voice: DrumTrackId::Ride, params: ds(0.55, 0.05, 0.70, 0.50, 0.75, 0.40, 0.43, 0.60) },
+    DrumSoundPreset { name: "Thin Ride",     category: "Minimal",    voice: DrumTrackId::Ride, params: ds(0.65, 0.00, 0.25, 0.15, 0.50, 0.00, 0.33, 0.50) },
 ];
 
 // ── Clap Presets ─────────────────────────────────────────────────────────────
