@@ -65,7 +65,7 @@ pub fn start_audio_stream(
                 }
             },
             |err| {
-                eprintln!("audio stream error: {}", err);
+                log::error!("audio stream error: {}", err);
             },
             None,
         )
