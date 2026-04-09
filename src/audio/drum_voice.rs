@@ -262,11 +262,13 @@ pub struct KickVoice {
     pitch_stage2: bool,    // true once stage-1 envelope drops below threshold
     body_env: f32,         // body amplitude envelope
     body_decay: f32,       // per-sample body env decay
-    // Body LP filter
-    body_lp: OnePoleLP,
-    // Attack ramp: ~0.5ms linear rise to avoid DC click at onset
+    // Body filter: StateVariableFilter for resonance control
+    body_svf: StateVariableFilter,
+    body_lp_freq_base: f32,
+    // Amplitude envelopes
+    body_env_att: f32,     // body attack envelope
+    body_env_att_inc: f32, // body attack ramp increment
     sample_count: u32,
-    attack_samples: u32,
     // Path B: click impulse → resonant BP/LP filter
     click_env: f32, // click amplitude envelope (fixed short decay)
     click_decay: f32,
@@ -299,9 +301,7 @@ impl KickVoice {
             pitch_stage2: false,
             body_env: 0.0,
             body_decay: 0.0,
-            body_lp: OnePoleLP::new(),
             sample_count: 0,
-            attack_samples: (sr * 0.0005) as u32, // ~0.5ms
             click_env: 0.0,
             click_decay: 0.0,
             click_level: 0.5,
@@ -315,6 +315,10 @@ impl KickVoice {
             sub_freq: 0.0,
             sub_env: 0.0,
             sub_decay: 0.0,
+            body_svf: StateVariableFilter::new(),
+            body_lp_freq_base: 0.0,
+            body_env_att: 0.0,
+            body_env_att_inc: 0.0,
         }
     }
 }
@@ -327,8 +331,8 @@ impl DrumVoiceDsp for KickVoice {
 
         // ── Path A: sine body ────────────────────────────────────────
 
-        // tune: fundamental freq 30-80 Hz
-        self.freq_base = 30.0 + p.tune * 50.0;
+        // tune: fundamental freq 20-120 Hz
+        self.freq_base = 20.0 + p.tune * 100.0;
 
         // sweep: pitch envelope depth (0-500 Hz above fundamental)
         self.freq_start = self.freq_base + p.sweep * 500.0;
@@ -339,28 +343,33 @@ impl DrumVoiceDsp for KickVoice {
         //   Color 0 → 5ms (tight thump), Color 1 → 200ms (long "zoop")
         self.pitch_env = 1.0;
         self.pitch_stage2 = false;
+        let shape_inv = 1.0 - p.shape;
         self.pitch_decay_fast = (-5.0_f64 / (0.0025 * self.sr)).exp() as f32;
-        let pitch_time_slow = 0.005 + p.color as f64 * 0.195;
+        let pitch_time_slow = (0.005 + p.color as f64 * 0.195) * (1.0 + shape_inv as f64 * 0.5);
         self.pitch_decay_slow = (-5.0_f64 / (pitch_time_slow * self.sr)).exp() as f32;
         self.pitch_decay = self.pitch_decay_fast; // start in stage 1
 
-        // decay: body amplitude envelope (80-600ms)
-        let body_time = 0.08 + p.decay as f64 * 0.52;
+        // decay: body amplitude envelope (80-600ms), 808 shape gets ~40% longer body
+        let body_time = (0.08 + p.decay as f64 * 0.52) * (1.0 + shape_inv as f64 * 0.4);
         self.body_env = 1.0;
         self.body_decay = (-5.0_f64 / (body_time * self.sr)).exp() as f32;
 
-        // filter: body LP (500-8000 Hz), color opens it further (+2kHz at max)
-        let color_lp_boost = p.color * 2000.0;
-        let lp_freq = (500.0 + p.filter * 7500.0 + color_lp_boost).min(12000.0);
-        self.body_lp.set_freq(lp_freq, self.sr);
-        self.body_lp.prev_out = 0.0;
+        // Body LP filter
+        let body_lp_freq = 40.0 + p.filter * 760.0;  // 40-800 Hz — actually sculpts kick body
+        let filter_reso = 0.1 + p.filter * 0.5;       // resonance adds character
+        self.body_lp_freq_base = body_lp_freq;
+        self.body_svf.set_freq(body_lp_freq, filter_reso, self.sr);
+        self.body_svf.reset();
 
-        // ── Path B: click impulse ────────────────────────────────────
+        // Attack envelope
+        self.body_env_att = 0.0;
+        let attack_time = p.attack * 0.01; // 0-10ms
+        let attack_samps = (attack_time * self.sr as f32).max(1.0);
+        self.body_env_att_inc = 1.0 / attack_samps;
 
-        // snap: click level (the 909 "Attack" knob)
-        self.click_level = p.snap;
+        // Click level — 909 shape gets louder click
+        self.click_level = (0.3 + p.snap * 0.7) * (0.5 + p.shape * 0.5);
 
-        // Click envelope: fixed short decay (~4ms, like the 909)
         self.click_env = 1.0;
         self.click_decay = (-5.0_f64 / (0.004 * self.sr)).exp() as f32;
 
@@ -377,8 +386,8 @@ impl DrumVoiceDsp for KickVoice {
 
         self.sub_freq = self.freq_base * 0.5; // octave below, not a fourth
         self.sub_phase = 0.0;
-        // Color 0 → heavy sub (0.35), Color 1 → minimal sub (0.10)
-        self.sub_env = 0.35 - p.color * 0.25;
+        // shape=0 (808) gets heavy sub ~0.40, shape=1 (909) minimal ~0.10, color still darkens
+        self.sub_env = (0.10 + shape_inv * 0.30) * (1.0 - p.color * 0.5);
         // Decay tracks body but slightly shorter — support without boom
         self.sub_decay = (-5.0_f64 / ((0.10 + p.decay as f64 * 0.3) * self.sr)).exp() as f32;
 
@@ -420,13 +429,16 @@ impl DrumVoiceDsp for KickVoice {
         let harmonic2 = (self.phase * 2.0 * std::f64::consts::TAU).sin() as f32 * harm_amount;
 
         // Body LP filter + envelope
-        // Attack ramp: ~0.5ms linear rise to avoid DC click artifact at onset
-        let attack_amp = if self.sample_count < self.attack_samples {
-            self.sample_count as f32 / self.attack_samples as f32
-        } else {
-            1.0
-        };
-        let body = self.body_lp.tick(sine + harmonic2) * self.body_env * attack_amp;
+        // Attack ramp: linear rise to avoid DC click artifact at onset
+        let attack_amp = self.body_env_att.min(1.0);
+        if self.body_env_att < 1.0 {
+            self.body_env_att += self.body_env_att_inc;
+        }
+        // Filter follows pitch envelope for spectral evolution ("zoop → thud")
+        let dynamic_cutoff = self.body_lp_freq_base + (freq - self.freq_base) * 0.5;
+        self.body_svf.set_freq(dynamic_cutoff.max(20.0), 0.1 + self.drive * 0.3, self.sr);
+        self.body_svf.tick(sine + harmonic2);
+        let body = self.body_svf.lp() * self.body_env * attack_amp;
         self.body_env *= self.body_decay;
 
         // ── Path B: click impulse ──
@@ -500,6 +512,8 @@ pub struct SnareVoice {
     drive: f32,
     active: bool,
     comb: CombFilter,
+    body_env_att: f32,
+    body_env_att_inc: f32,
 }
 
 impl SnareVoice {
@@ -527,6 +541,8 @@ impl SnareVoice {
             drive: 0.0,
             active: false,
             comb: CombFilter::new(),
+            body_env_att: 0.0,
+            body_env_att_inc: 0.0,
         }
     }
 }
@@ -543,30 +559,35 @@ impl DrumVoiceDsp for SnareVoice {
         self.pitch_decay = (-5.0_f64 / (0.02 * self.sr)).exp() as f32;
 
         // Body envelope: short, color extends it slightly (0.02-0.08s)
-        let body_time = 0.02 + p.color as f64 * 0.06;
+        let body_time = 0.02 + p.color as f64 * 0.04 + p.decay as f64 * 0.08;
         self.body_env = 1.0;
         self.body_decay = (-5.0_f64 / (body_time * self.sr)).exp() as f32;
 
-        // Noise envelope: controlled by decay param (0.05-0.4s)
-        let noise_time = 0.05 + p.decay as f64 * 0.35;
+        // Noise envelope: longer than body for snare sizzle
+        let noise_time = 0.04 + p.decay as f64 * 0.35;
         self.noise_env = 1.0;
         self.noise_decay = (-5.0_f64 / (noise_time * self.sr)).exp() as f32;
 
-        // color: tone/noise balance
-        self.tone_noise_mix = p.color;
+        // color + shape: tone-noise balance (shape adds warmth)
+        self.tone_noise_mix = 0.3 + p.color * 0.4 + p.shape * 0.1;
 
-        // snap: impact transient (~3ms noise burst)
+        // snap: impact transient (noise burst in first ~3ms)
         self.impact_samples = (self.sr * 0.003) as u32;
         self.impact_remaining = self.impact_samples;
-        self.impact_amp = 0.3 + p.snap * 0.7;
+        self.impact_amp = 0.5 + p.snap * 0.5;
 
         // filter: tightness/gate
         self.tightness = p.filter;
 
-        // Overall envelope for tightness gating
-        let overall_time = 0.05 + p.decay as f64 * 0.45;
+        // Overall envelope for tightness gating (shape opens it up)
+        let overall_time = 0.05 + p.decay as f64 * 0.45 + p.shape as f64 * 0.1;
         self.overall_env = 1.0;
         self.overall_decay = (-5.0_f64 / (overall_time * self.sr)).exp() as f32;
+
+        // Attack envelope
+        self.body_env_att = 0.0;
+        let att_samps = (p.attack * 0.01 * self.sr as f32).max(1.0);
+        self.body_env_att_inc = 1.0 / att_samps;
 
         // Noise HP cutoff derived from tune (higher tuned = brighter wires)
         let hp_freq = 2000.0 + p.tune * 6000.0;
@@ -580,8 +601,9 @@ impl DrumVoiceDsp for SnareVoice {
         self.lp.prev_out = 0.0;
 
         // Shell resonance: comb filter tuned to 2x snare pitch for metallic ring
+        // shape increases resonance for fatter body
         let comb_freq = (120.0 + p.tune * 160.0) * 2.0; // ~240-560 Hz
-        let comb_fb = 0.3 + p.color * 0.3; // more color = more resonance
+        let comb_fb = (0.3 + p.color * 0.3) * (0.6 + p.shape * 0.4);
         self.comb.set(comb_freq, self.sr, comb_fb);
 
         self.drive = p.drive;
@@ -627,10 +649,16 @@ impl DrumVoiceDsp for SnareVoice {
         let shaped = self.lp.tick(raw);
         let driven = apply_drive(shaped, self.drive);
 
+        // Attack ramp
+        let attack_amp = self.body_env_att.min(1.0);
+        if self.body_env_att < 1.0 {
+            self.body_env_att += self.body_env_att_inc;
+        }
+
         // Tightness gate: pow(env, 1 + tightness * 3)
         self.overall_env *= self.overall_decay;
         let tight_env = self.overall_env.powf(1.0 + self.tightness * 3.0);
-        let out = driven * tight_env;
+        let out = driven * tight_env * attack_amp;
 
         if self.overall_env < 1e-6 {
             self.active = false;
@@ -671,6 +699,8 @@ pub struct ClosedHiHatVoice {
     // Sizzle: high-shelf boost state
     sizzle_state: f32,
     sizzle_coeff: f32,
+    body_env_att: f32,
+    body_env_att_inc: f32,
 }
 
 impl ClosedHiHatVoice {
@@ -699,6 +729,8 @@ impl ClosedHiHatVoice {
             transient_noise: Noise::new(789),
             sizzle_state: 0.0,
             sizzle_coeff: dt / (rc + dt),
+            body_env_att: 0.0,
+            body_env_att_inc: 0.0,
         }
     }
 }
@@ -711,7 +743,8 @@ impl DrumVoiceDsp for ClosedHiHatVoice {
         self.base_freq = 300.0 + p.tune * 600.0;
 
         // color: cross-FM intensity (0 = clean shimmer, 1 = gritty/harsh)
-        self.fm_intensity = p.color * 1.5;
+        // shape adds metallic density
+        self.fm_intensity = p.color * 1.5 + p.shape * 0.5;
 
         // sweep: noise layer mix (0 = pure metallic, 1 = noisy/trashy)
         self.noise_mix = 0.3 + p.sweep * 0.7;
@@ -741,6 +774,11 @@ impl DrumVoiceDsp for ClosedHiHatVoice {
         let transient_ms = 2.0;
         self.transient_decay = (-5.0_f64 / (transient_ms as f64 * 0.001 * self.sr)).exp() as f32;
 
+        // Attack envelope
+        self.body_env_att = 0.0;
+        let att_samps = (p.attack * 0.01 * self.sr as f32).max(1.0);
+        self.body_env_att_inc = 1.0 / att_samps;
+
         self.drive = p.drive;
         self.active = true;
     }
@@ -748,6 +786,12 @@ impl DrumVoiceDsp for ClosedHiHatVoice {
     fn tick(&mut self) -> f32 {
         if !self.active {
             return 0.0;
+        }
+
+        // Attack ramp
+        let attack_amp = self.body_env_att.min(1.0);
+        if self.body_env_att < 1.0 {
+            self.body_env_att += self.body_env_att_inc;
         }
 
         let sr_recip = self.sr_recip;
@@ -805,7 +849,7 @@ impl DrumVoiceDsp for ClosedHiHatVoice {
         let sizzle_in = driven + transient;
         self.sizzle_state += self.sizzle_coeff * (sizzle_in - self.sizzle_state);
         let hi_content = sizzle_in - self.sizzle_state; // HP = input - LP
-        let out = (sizzle_in + hi_content * 0.4) * self.env; // boost highs by ~40%
+        let out = (sizzle_in + hi_content * 0.4) * self.env * attack_amp;
 
         self.env *= self.env_decay;
         if self.env < 1e-6 {
@@ -934,7 +978,8 @@ impl DrumVoiceDsp for OpenHiHatVoice {
         self.base_freq = 200.0 + p.tune * 600.0;
 
         // color: phase modulation depth (clean shimmer → gritty/harsh)
-        self.pm_depth = p.color * 1.5;
+        // shape adds extra grit for thicker character
+        self.pm_depth = p.color * 1.5 + p.shape * 0.5;
 
         // sweep: ring modulation depth (pure noise ↔ metallic coloring)
         // 0.0 = mostly noise (trashy/white), 1.0 = strong metallic ring
@@ -948,9 +993,10 @@ impl DrumVoiceDsp for OpenHiHatVoice {
         self.env_hf = 1.0;
         self.env_hf_decay = (-5.0_f64 / (hf_time as f64 * self.sr)).exp() as f32;
 
-        // Attack ramp (~0.5ms)
+        // Attack ramp (controlled by attack param: 0-10ms)
         self.attack_env = 0.0;
-        self.attack_inc = 1.0 / (0.0005 * self.sr as f32);
+        let att_time = (p.attack * 0.01).max(1.0 / self.sr as f32);
+        self.attack_inc = 1.0 / (att_time * self.sr as f32);
 
         // snap: stick transient (~3ms noise burst)
         self.snap_env = p.snap * 1.0;
@@ -1114,6 +1160,8 @@ pub struct RideVoice {
     svf: StateVariableFilter,
     drive: f32,
     active: bool,
+    body_env_att: f32,
+    body_env_att_inc: f32,
 }
 
 impl RideVoice {
@@ -1137,6 +1185,8 @@ impl RideVoice {
             svf: StateVariableFilter::new(),
             drive: 0.0,
             active: false,
+            body_env_att: 0.0,
+            body_env_att_inc: 0.0,
         }
     }
 }
@@ -1150,7 +1200,8 @@ impl DrumVoiceDsp for RideVoice {
         self.base_freq = 150.0 + p.tune * 450.0;
 
         // sweep: inharmonicity spread (0 = tight cluster, 1 = wide spread)
-        self.inharmonicity = p.sweep * 400.0;
+        // shape widens the spread for thicker wash
+        self.inharmonicity = p.sweep * 400.0 + p.shape * 150.0;
 
         // color: FM cross-modulation intensity (0 = clean shimmer, 1 = screaming)
         self.fm_intensity = p.color * 2.0;
@@ -1183,6 +1234,11 @@ impl DrumVoiceDsp for RideVoice {
         self.svf.set_freq(lp_freq, 0.1, self.sr);
         self.svf.reset();
 
+        // Attack envelope
+        self.body_env_att = 0.0;
+        let att_samps = (p.attack * 0.01 * self.sr as f32).max(1.0);
+        self.body_env_att_inc = 1.0 / att_samps;
+
         self.drive = p.drive;
         self.active = true;
     }
@@ -1190,6 +1246,12 @@ impl DrumVoiceDsp for RideVoice {
     fn tick(&mut self) -> f32 {
         if !self.active {
             return 0.0;
+        }
+
+        // Attack ramp
+        let attack_amp = self.body_env_att.min(1.0);
+        if self.body_env_att < 1.0 {
+            self.body_env_att += self.body_env_att_inc;
         }
 
         let sr_recip = self.sr_recip;
@@ -1261,7 +1323,7 @@ impl DrumVoiceDsp for RideVoice {
         self.svf.tick(hp_out);
         let filtered = self.svf.lp();
 
-        let driven = apply_drive(filtered, self.drive);
+        let driven = apply_drive(filtered, self.drive) * attack_amp;
 
         // Use body envelope for overall gate (it's the longest)
         if self.env_body < 1e-6 {
@@ -1302,6 +1364,8 @@ pub struct ClapVoice {
     noise: Noise,
     drive: f32,
     active: bool,
+    body_env_att: f32,
+    body_env_att_inc: f32,
 }
 
 impl ClapVoice {
@@ -1335,6 +1399,8 @@ impl ClapVoice {
             noise: Noise::new(654),
             drive: 0.0,
             active: false,
+            body_env_att: 0.0,
+            body_env_att_inc: 0.0,
         }
     }
 }
@@ -1361,8 +1427,8 @@ impl DrumVoiceDsp for ClapVoice {
 
         // snap: burst count (3-6)
         self.burst_count = 3 + (p.snap * 3.0).round() as u32;
-        // Fixed burst spacing ~4ms
-        let spacing = 0.004;
+        // Burst spacing: shape widens for roomier feel (3-6ms)
+        let spacing = 0.003 + p.shape as f64 * 0.003;
         self.burst_on_samples = (self.sr * spacing) as u32;
         self.burst_off_samples = (self.sr * spacing) as u32;
 
@@ -1376,6 +1442,11 @@ impl DrumVoiceDsp for ClapVoice {
         self.punch_samples = (self.sr * 0.01) as u32; // 10ms window
         self.punch_remaining = self.punch_samples;
 
+        // Attack envelope
+        self.body_env_att = 0.0;
+        let att_samps = (p.attack * 0.01 * self.sr as f32).max(1.0);
+        self.body_env_att_inc = 1.0 / att_samps;
+
         self.drive = p.drive;
         self.active = true;
     }
@@ -1383,6 +1454,12 @@ impl DrumVoiceDsp for ClapVoice {
     fn tick(&mut self) -> f32 {
         if !self.active {
             return 0.0;
+        }
+
+        // Attack ramp
+        let attack_amp = self.body_env_att.min(1.0);
+        if self.body_env_att < 1.0 {
+            self.body_env_att += self.body_env_att_inc;
         }
 
         // Noise generation with color blend
@@ -1434,7 +1511,7 @@ impl DrumVoiceDsp for ClapVoice {
         };
 
         let driven = apply_drive(filtered * punch_gain, self.drive);
-        let out = driven * self.env * burst_gate;
+        let out = driven * self.env * burst_gate * attack_amp;
 
         if !self.in_burst_phase {
             self.env *= self.env_decay;
@@ -1467,6 +1544,8 @@ pub struct CowbellVoice {
     noise: Noise,
     drive: f32,
     active: bool,
+    body_env_att: f32,
+    body_env_att_inc: f32,
 }
 
 impl CowbellVoice {
@@ -1487,6 +1566,8 @@ impl CowbellVoice {
             noise: Noise::new(987),
             drive: 0.0,
             active: false,
+            body_env_att: 0.0,
+            body_env_att_inc: 0.0,
         }
     }
 }
@@ -1500,8 +1581,8 @@ impl DrumVoiceDsp for CowbellVoice {
         // sweep: detune amount between oscillators
         self.freq2 = self.freq1 * (1.3 + p.sweep * 0.4);
 
-        // color: pulse width of square waves
-        self.pulse_width = 0.3 + p.color * 0.4;
+        // color + shape: pulse width of square waves (shape adds warmth)
+        self.pulse_width = 0.3 + p.color * 0.3 + p.shape * 0.1;
 
         self.env = 1.0;
         let time = 0.05 + p.decay * 0.25;
@@ -1519,6 +1600,11 @@ impl DrumVoiceDsp for CowbellVoice {
         self.hp.prev_out = 0.0;
         self.lp.prev_out = 0.0;
 
+        // Attack envelope
+        self.body_env_att = 0.0;
+        let att_samps = (p.attack * 0.01 * self.sr as f32).max(1.0);
+        self.body_env_att_inc = 1.0 / att_samps;
+
         self.drive = p.drive;
         self.active = true;
     }
@@ -1526,6 +1612,12 @@ impl DrumVoiceDsp for CowbellVoice {
     fn tick(&mut self) -> f32 {
         if !self.active {
             return 0.0;
+        }
+
+        // Attack ramp
+        let attack_amp = self.body_env_att.min(1.0);
+        if self.body_env_att < 1.0 {
+            self.body_env_att += self.body_env_att_inc;
         }
 
         self.phase1 += self.freq1 as f64 / self.sr;
@@ -1554,7 +1646,7 @@ impl DrumVoiceDsp for CowbellVoice {
         let sum = (sq1 + sq2) * 0.5 + snap;
         let filtered = self.lp.tick(self.hp.tick(sum));
         let driven = apply_drive(filtered, self.drive);
-        let out = driven * self.env;
+        let out = driven * self.env * attack_amp;
 
         self.env *= self.env_decay;
         if self.env < 1e-6 {
@@ -1596,6 +1688,8 @@ pub struct TomVoice {
     noise: Noise,
     drive: f32,
     active: bool,
+    body_env_att: f32,
+    body_env_att_inc: f32,
 }
 
 impl TomVoice {
@@ -1623,6 +1717,8 @@ impl TomVoice {
             noise: Noise::new(555),
             drive: 0.0,
             active: false,
+            body_env_att: 0.0,
+            body_env_att_inc: 0.0,
         }
     }
 }
@@ -1645,8 +1741,8 @@ impl DrumVoiceDsp for TomVoice {
         let time = 0.08 + p.decay * 0.42;
         self.env_decay = (-5.0_f64 / (time as f64 * self.sr)).exp() as f32;
 
-        // color: FM depth and grit
-        self.fm_depth = p.color * 1.2;
+        // color: FM depth and grit (shape adds boominess via reduced FM)
+        self.fm_depth = p.color * 1.2 * (1.0 - p.shape * 0.4);
         self.fm_feedback_amt = p.color * 0.25;
         self.mod_freq_ratio = 2.0 + p.color * 1.5;
         // FM envelope for attack character
@@ -1667,6 +1763,11 @@ impl DrumVoiceDsp for TomVoice {
         self.lp.set_freq(lp_freq, self.sr);
         self.lp.prev_out = 0.0;
 
+        // Attack envelope
+        self.body_env_att = 0.0;
+        let att_samps = (p.attack * 0.01 * self.sr as f32).max(1.0);
+        self.body_env_att_inc = 1.0 / att_samps;
+
         self.drive = p.drive;
         self.active = true;
     }
@@ -1674,6 +1775,12 @@ impl DrumVoiceDsp for TomVoice {
     fn tick(&mut self) -> f32 {
         if !self.active {
             return 0.0;
+        }
+
+        // Attack ramp
+        let attack_amp = self.body_env_att.min(1.0);
+        if self.body_env_att < 1.0 {
+            self.body_env_att += self.body_env_att_inc;
         }
 
         // Pitch envelope: cubed for punchier drop
@@ -1718,7 +1825,7 @@ impl DrumVoiceDsp for TomVoice {
         let raw = shaped + noise + snap;
         let filtered = self.lp.tick(raw);
         let driven = apply_drive(filtered, self.drive);
-        let out = driven * self.env;
+        let out = driven * self.env * attack_amp;
 
         self.env *= self.env_decay;
         if self.env < 1e-6 {
@@ -1759,6 +1866,8 @@ mod tests {
             sweep,
             color,
             snap: 0.45,
+            shape: 0.0,
+            attack: 0.1,
             filter: 0.7,
             drive: 0.20,
             decay: 0.45,

@@ -211,6 +211,8 @@ fn render_activity_bar(f: &mut Frame, area: Rect, app: &App) {
             DrumControlField::Sweep  => ("Sweep",  params.sweep),
             DrumControlField::Color  => ("Color",  params.color),
             DrumControlField::Snap   => ("Snap",   params.snap),
+            DrumControlField::Shape  => ("Shape",  params.shape),
+            DrumControlField::Attack => ("Attack", params.attack),
             DrumControlField::Filter => ("Filter", params.filter),
             DrumControlField::Drive  => ("Drive",  params.drive),
             DrumControlField::Decay  => ("Decay",  params.decay),

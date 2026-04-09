@@ -1394,6 +1394,8 @@ fn adjust_drum_field(app: &mut App, track: usize, delta: f32) {
         DrumControlField::Sweep => params.sweep = (params.sweep + delta).clamp(0.0, 1.0),
         DrumControlField::Color => params.color = (params.color + delta).clamp(0.0, 1.0),
         DrumControlField::Snap => params.snap = (params.snap + delta).clamp(0.0, 1.0),
+        DrumControlField::Shape => params.shape = (params.shape + delta).clamp(0.0, 1.0),
+        DrumControlField::Attack => params.attack = (params.attack + delta).clamp(0.0, 1.0),
         DrumControlField::Filter => params.filter = (params.filter + delta).clamp(0.0, 1.0),
         DrumControlField::Drive => params.drive = (params.drive + delta).clamp(0.0, 1.0),
         DrumControlField::Decay => params.decay = (params.decay + delta).clamp(0.0, 1.0),
