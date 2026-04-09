@@ -32,6 +32,10 @@ pub struct DrumSoundParams {
     pub color: f32,
     #[serde(default = "default_third")]
     pub snap: f32,
+    #[serde(default)]
+    pub shape: f32,
+    #[serde(default = "default_attack")]
+    pub attack: f32,
     #[serde(default = "default_half")]
     pub filter: f32,
     #[serde(default)]
@@ -51,11 +55,13 @@ pub struct DrumSoundParams {
 fn default_half() -> f32 { 0.5 }
 fn default_third() -> f32 { 0.3 }
 fn default_volume() -> f32 { 0.8 }
+fn default_attack() -> f32 { 0.1 }
 
 impl Default for DrumSoundParams {
     fn default() -> Self {
         Self {
             tune: 0.5, sweep: 0.3, color: 0.5, snap: 0.3,
+            shape: 0.0, attack: 0.1,
             filter: 0.5, drive: 0.0, decay: 0.5, volume: 0.8,
             send_reverb: 0.0, send_delay: 0.0, pan: 0.5,
         }
@@ -67,6 +73,7 @@ impl DrumSoundParams {
         let p = DrumTrackParams::defaults_for(track);
         Self {
             tune: p.tune, sweep: p.sweep, color: p.color, snap: p.snap,
+            shape: p.shape, attack: p.attack,
             filter: p.filter, drive: p.drive, decay: p.decay, volume: p.volume,
             send_reverb: p.send_reverb, send_delay: p.send_delay, pan: p.pan,
         }
@@ -75,6 +82,7 @@ impl DrumSoundParams {
     pub fn to_track_params(self) -> DrumTrackParams {
         DrumTrackParams {
             tune: self.tune, sweep: self.sweep, color: self.color, snap: self.snap,
+            shape: self.shape, attack: self.attack,
             filter: self.filter, drive: self.drive, decay: self.decay, volume: self.volume,
             send_reverb: self.send_reverb, send_delay: self.send_delay, pan: self.pan,
             mute: false, solo: false,
@@ -84,6 +92,7 @@ impl DrumSoundParams {
     pub fn from_track_params(p: &DrumTrackParams) -> Self {
         Self {
             tune: p.tune, sweep: p.sweep, color: p.color, snap: p.snap,
+            shape: p.shape, attack: p.attack,
             filter: p.filter, drive: p.drive, decay: p.decay, volume: p.volume,
             send_reverb: p.send_reverb, send_delay: p.send_delay, pan: p.pan,
         }
@@ -92,9 +101,9 @@ impl DrumSoundParams {
 
 // ── Genre Kit Presets ────────────────────────────────────────────────────────
 
-/// Helper: build a DrumSoundParams from (tune, sweep, color, snap, filter, drive, decay, volume, send_reverb, send_delay).
-fn ds(t: f32, sw: f32, c: f32, sn: f32, f: f32, dr: f32, dc: f32, v: f32, sr: f32, sd: f32) -> DrumSoundParams {
-    DrumSoundParams { tune: t, sweep: sw, color: c, snap: sn, filter: f, drive: dr, decay: dc, volume: v, send_reverb: sr, send_delay: sd, pan: 0.5 }
+/// Helper: build a DrumSoundParams from (tune, sweep, color, snap, shape, attack, filter, drive, decay, volume, send_reverb, send_delay).
+fn ds(t: f32, sw: f32, c: f32, sn: f32, sh: f32, at: f32, f: f32, dr: f32, dc: f32, v: f32, sr: f32, sd: f32) -> DrumSoundParams {
+    DrumSoundParams { tune: t, sweep: sw, color: c, snap: sn, shape: sh, attack: at, filter: f, drive: dr, decay: dc, volume: v, send_reverb: sr, send_delay: sd, pan: 0.5 }
 }
 
 /// Build a named kit from 8 DrumSoundParams (one per voice in TRACK_IDS order).
@@ -111,92 +120,92 @@ pub fn genre_kits() -> Vec<DrumKit> {
     vec![
         // Kit 1: 808 — deep, boomy, analog warmth
         make_kit("808", [
-            //       tune  sweep color snap  filt  drive decay vol   rvb   dly
-            ds(0.20, 0.70, 0.15, 0.10, 0.50, 0.10, 0.80, 0.85, 0.05, 0.00), // Kick
-            ds(0.35, 0.15, 0.50, 0.40, 0.50, 0.10, 0.40, 0.80, 0.15, 0.00), // Snare
-            ds(0.60, 0.00, 0.50, 0.40, 0.65, 0.00, 0.08, 0.70, 0.05, 0.00), // CHH
-            ds(0.50, 0.00, 0.50, 0.30, 0.55, 0.00, 0.50, 0.65, 0.10, 0.00), // OHH
-            ds(0.55, 0.00, 0.45, 0.15, 0.50, 0.00, 0.70, 0.55, 0.10, 0.00), // Ride
-            ds(0.50, 0.30, 0.50, 0.50, 0.50, 0.10, 0.40, 0.70, 0.20, 0.00), // Clap
-            ds(0.50, 0.30, 0.50, 0.20, 0.50, 0.10, 0.40, 0.70, 0.10, 0.00), // Cowbell
-            ds(0.30, 0.60, 0.10, 0.30, 0.70, 0.10, 0.55, 0.80, 0.10, 0.00), // Tom
+            //       tune  sweep color snap  shape attck filt  drive decay vol   rvb   dly
+            ds(0.20, 0.70, 0.15, 0.10, 0.05, 0.08, 0.70, 0.10, 0.80, 0.85, 0.05, 0.00), // Kick
+            ds(0.35, 0.15, 0.50, 0.40, 0.30, 0.10, 0.50, 0.10, 0.40, 0.80, 0.15, 0.00), // Snare
+            ds(0.60, 0.00, 0.50, 0.40, 0.10, 0.02, 0.65, 0.00, 0.08, 0.70, 0.05, 0.00), // CHH
+            ds(0.50, 0.00, 0.50, 0.30, 0.20, 0.06, 0.55, 0.00, 0.50, 0.65, 0.10, 0.00), // OHH
+            ds(0.55, 0.00, 0.45, 0.15, 0.20, 0.06, 0.50, 0.00, 0.70, 0.55, 0.10, 0.00), // Ride
+            ds(0.50, 0.30, 0.50, 0.50, 0.30, 0.10, 0.50, 0.10, 0.40, 0.70, 0.20, 0.00), // Clap
+            ds(0.50, 0.30, 0.50, 0.20, 0.20, 0.05, 0.50, 0.10, 0.40, 0.70, 0.10, 0.00), // Cowbell
+            ds(0.30, 0.60, 0.10, 0.30, 0.20, 0.08, 0.70, 0.10, 0.55, 0.80, 0.10, 0.00), // Tom
         ]),
         // Kit 2: 909 — punchy, crisp, harder-hitting
         make_kit("909", [
-            ds(0.35, 0.50, 0.30, 0.60, 0.80, 0.30, 0.45, 0.85, 0.05, 0.00), // Kick
-            ds(0.45, 0.10, 0.60, 0.60, 0.65, 0.20, 0.35, 0.85, 0.15, 0.00), // Snare
-            ds(0.55, 0.00, 0.55, 0.35, 0.70, 0.10, 0.12, 0.70, 0.05, 0.00), // CHH
-            ds(0.55, 0.00, 0.55, 0.35, 0.65, 0.10, 0.55, 0.70, 0.10, 0.00), // OHH
-            ds(0.60, 0.00, 0.50, 0.25, 0.60, 0.10, 0.65, 0.60, 0.10, 0.00), // Ride
-            ds(0.55, 0.25, 0.55, 0.60, 0.60, 0.15, 0.35, 0.75, 0.20, 0.00), // Clap
-            ds(0.55, 0.25, 0.45, 0.30, 0.60, 0.10, 0.35, 0.65, 0.10, 0.00), // Cowbell
-            ds(0.50, 0.70, 0.20, 0.50, 0.70, 0.20, 0.45, 0.75, 0.10, 0.00), // Tom
+            ds(0.35, 0.50, 0.30, 0.60, 0.80, 0.02, 0.80, 0.30, 0.45, 0.85, 0.05, 0.00), // Kick
+            ds(0.45, 0.10, 0.60, 0.60, 0.50, 0.05, 0.65, 0.20, 0.35, 0.85, 0.15, 0.00), // Snare
+            ds(0.55, 0.00, 0.55, 0.35, 0.30, 0.02, 0.70, 0.10, 0.12, 0.70, 0.05, 0.00), // CHH
+            ds(0.55, 0.00, 0.55, 0.35, 0.30, 0.03, 0.65, 0.10, 0.55, 0.70, 0.10, 0.00), // OHH
+            ds(0.60, 0.00, 0.50, 0.25, 0.30, 0.03, 0.60, 0.10, 0.65, 0.60, 0.10, 0.00), // Ride
+            ds(0.55, 0.25, 0.55, 0.60, 0.50, 0.06, 0.60, 0.15, 0.35, 0.75, 0.20, 0.00), // Clap
+            ds(0.55, 0.25, 0.45, 0.30, 0.30, 0.03, 0.60, 0.10, 0.35, 0.65, 0.10, 0.00), // Cowbell
+            ds(0.50, 0.70, 0.20, 0.50, 0.50, 0.04, 0.70, 0.20, 0.45, 0.75, 0.10, 0.00), // Tom
         ]),
         // Kit 3: Techno — dark, driving, industrial-leaning
         make_kit("Techno", [
-            ds(0.22, 0.75, 0.25, 0.55, 0.60, 0.35, 0.70, 0.90, 0.05, 0.00), // Kick
-            ds(0.38, 0.10, 0.70, 0.65, 0.55, 0.35, 0.25, 0.75, 0.15, 0.00), // Snare
-            ds(0.50, 0.05, 0.60, 0.50, 0.55, 0.25, 0.06, 0.65, 0.05, 0.00), // CHH
-            ds(0.45, 0.10, 0.65, 0.40, 0.50, 0.30, 0.40, 0.60, 0.10, 0.10), // OHH
-            ds(0.50, 0.05, 0.60, 0.30, 0.45, 0.30, 0.55, 0.50, 0.10, 0.10), // Ride
-            ds(0.48, 0.20, 0.60, 0.70, 0.55, 0.30, 0.30, 0.75, 0.15, 0.00), // Clap
-            ds(0.55, 0.35, 0.55, 0.40, 0.50, 0.35, 0.25, 0.60, 0.10, 0.10), // Cowbell
-            ds(0.35, 0.75, 0.30, 0.55, 0.55, 0.35, 0.50, 0.75, 0.10, 0.00), // Tom
+            ds(0.22, 0.75, 0.25, 0.55, 0.30, 0.02, 0.60, 0.35, 0.70, 0.90, 0.05, 0.00), // Kick
+            ds(0.38, 0.10, 0.70, 0.65, 0.60, 0.04, 0.55, 0.35, 0.25, 0.75, 0.15, 0.00), // Snare
+            ds(0.50, 0.05, 0.60, 0.50, 0.40, 0.02, 0.55, 0.25, 0.06, 0.65, 0.05, 0.00), // CHH
+            ds(0.45, 0.10, 0.65, 0.40, 0.50, 0.04, 0.50, 0.30, 0.40, 0.60, 0.10, 0.10), // OHH
+            ds(0.50, 0.05, 0.60, 0.30, 0.50, 0.04, 0.45, 0.30, 0.55, 0.50, 0.10, 0.10), // Ride
+            ds(0.48, 0.20, 0.60, 0.70, 0.60, 0.05, 0.55, 0.30, 0.30, 0.75, 0.15, 0.00), // Clap
+            ds(0.55, 0.35, 0.55, 0.40, 0.50, 0.04, 0.50, 0.35, 0.25, 0.60, 0.10, 0.10), // Cowbell
+            ds(0.35, 0.75, 0.30, 0.55, 0.30, 0.03, 0.55, 0.35, 0.50, 0.75, 0.10, 0.00), // Tom
         ]),
         // Kit 4: House — classic house, warm and bouncy
         make_kit("House", [
-            ds(0.28, 0.60, 0.20, 0.45, 0.65, 0.15, 0.60, 0.85, 0.05, 0.00), // Kick
-            ds(0.42, 0.10, 0.55, 0.50, 0.60, 0.15, 0.38, 0.78, 0.15, 0.00), // Snare
-            ds(0.58, 0.00, 0.45, 0.35, 0.65, 0.05, 0.10, 0.68, 0.05, 0.00), // CHH
-            ds(0.52, 0.00, 0.45, 0.30, 0.60, 0.05, 0.50, 0.65, 0.10, 0.00), // OHH
-            ds(0.58, 0.00, 0.40, 0.20, 0.55, 0.05, 0.65, 0.55, 0.10, 0.00), // Ride
-            ds(0.52, 0.30, 0.50, 0.55, 0.55, 0.10, 0.42, 0.72, 0.25, 0.00), // Clap
-            ds(0.55, 0.25, 0.40, 0.25, 0.55, 0.05, 0.35, 0.60, 0.10, 0.00), // Cowbell
-            ds(0.45, 0.55, 0.15, 0.40, 0.75, 0.10, 0.50, 0.75, 0.10, 0.00), // Tom
+            ds(0.28, 0.60, 0.20, 0.45, 0.10, 0.05, 0.65, 0.15, 0.60, 0.85, 0.05, 0.00), // Kick
+            ds(0.42, 0.10, 0.55, 0.50, 0.40, 0.08, 0.60, 0.15, 0.38, 0.78, 0.15, 0.00), // Snare
+            ds(0.58, 0.00, 0.45, 0.35, 0.10, 0.02, 0.65, 0.05, 0.10, 0.68, 0.05, 0.00), // CHH
+            ds(0.52, 0.00, 0.45, 0.30, 0.20, 0.05, 0.60, 0.05, 0.50, 0.65, 0.10, 0.00), // OHH
+            ds(0.58, 0.00, 0.40, 0.20, 0.20, 0.05, 0.55, 0.05, 0.65, 0.55, 0.10, 0.00), // Ride
+            ds(0.52, 0.30, 0.50, 0.55, 0.40, 0.10, 0.55, 0.10, 0.42, 0.72, 0.25, 0.00), // Clap
+            ds(0.55, 0.25, 0.40, 0.25, 0.20, 0.04, 0.55, 0.05, 0.35, 0.60, 0.10, 0.00), // Cowbell
+            ds(0.45, 0.55, 0.15, 0.40, 0.20, 0.06, 0.75, 0.10, 0.50, 0.75, 0.10, 0.00), // Tom
         ]),
         // Kit 5: Minimal — clean, sparse, subtle
         make_kit("Minimal", [
-            ds(0.38, 0.30, 0.10, 0.75, 0.65, 0.00, 0.20, 0.75, 0.05, 0.00), // Kick
-            ds(0.50, 0.00, 0.35, 0.70, 0.75, 0.00, 0.15, 0.65, 0.10, 0.00), // Snare
-            ds(0.72, 0.00, 0.30, 0.25, 0.85, 0.00, 0.04, 0.55, 0.05, 0.10), // CHH
-            ds(0.65, 0.00, 0.30, 0.20, 0.60, 0.00, 0.25, 0.50, 0.10, 0.10), // OHH
-            ds(0.65, 0.00, 0.25, 0.15, 0.55, 0.00, 0.45, 0.45, 0.10, 0.10), // Ride
-            ds(0.58, 0.10, 0.30, 0.80, 0.78, 0.00, 0.10, 0.60, 0.10, 0.00), // Clap
-            ds(0.52, 0.10, 0.25, 0.30, 0.50, 0.00, 0.18, 0.50, 0.10, 0.10), // Cowbell
-            ds(0.60, 0.20, 0.05, 0.50, 0.60, 0.00, 0.22, 0.60, 0.10, 0.00), // Tom
+            ds(0.38, 0.30, 0.10, 0.75, 0.70, 0.02, 0.65, 0.00, 0.20, 0.75, 0.05, 0.00), // Kick
+            ds(0.50, 0.00, 0.35, 0.70, 0.30, 0.03, 0.75, 0.00, 0.15, 0.65, 0.10, 0.00), // Snare
+            ds(0.72, 0.00, 0.30, 0.25, 0.10, 0.01, 0.85, 0.00, 0.04, 0.55, 0.05, 0.10), // CHH
+            ds(0.65, 0.00, 0.30, 0.20, 0.10, 0.03, 0.60, 0.00, 0.25, 0.50, 0.10, 0.10), // OHH
+            ds(0.65, 0.00, 0.25, 0.15, 0.10, 0.03, 0.55, 0.00, 0.45, 0.45, 0.10, 0.10), // Ride
+            ds(0.58, 0.10, 0.30, 0.80, 0.20, 0.03, 0.78, 0.00, 0.10, 0.60, 0.10, 0.00), // Clap
+            ds(0.52, 0.10, 0.25, 0.30, 0.10, 0.02, 0.50, 0.00, 0.18, 0.50, 0.10, 0.10), // Cowbell
+            ds(0.60, 0.20, 0.05, 0.50, 0.40, 0.03, 0.60, 0.00, 0.22, 0.60, 0.10, 0.00), // Tom
         ]),
         // Kit 6: Lo-Fi — gritty, crushed, vintage
         make_kit("Lo-Fi", [
-            ds(0.28, 0.55, 0.45, 0.30, 0.40, 0.45, 0.55, 0.78, 0.15, 0.00), // Kick
-            ds(0.38, 0.12, 0.65, 0.35, 0.40, 0.45, 0.42, 0.72, 0.20, 0.00), // Snare
-            ds(0.48, 0.00, 0.60, 0.25, 0.38, 0.35, 0.10, 0.62, 0.10, 0.05), // CHH
-            ds(0.42, 0.00, 0.55, 0.20, 0.35, 0.35, 0.50, 0.60, 0.15, 0.10), // OHH
-            ds(0.42, 0.00, 0.55, 0.12, 0.35, 0.25, 0.75, 0.52, 0.15, 0.10), // Ride
-            ds(0.45, 0.25, 0.60, 0.40, 0.42, 0.40, 0.40, 0.68, 0.20, 0.00), // Clap
-            ds(0.48, 0.30, 0.55, 0.20, 0.40, 0.35, 0.38, 0.58, 0.15, 0.10), // Cowbell
-            ds(0.38, 0.50, 0.35, 0.25, 0.45, 0.40, 0.52, 0.70, 0.15, 0.00), // Tom
+            ds(0.28, 0.55, 0.45, 0.30, 0.20, 0.10, 0.40, 0.45, 0.55, 0.78, 0.15, 0.00), // Kick
+            ds(0.38, 0.12, 0.65, 0.35, 0.50, 0.12, 0.40, 0.45, 0.42, 0.72, 0.20, 0.00), // Snare
+            ds(0.48, 0.00, 0.60, 0.25, 0.40, 0.04, 0.38, 0.35, 0.10, 0.62, 0.10, 0.05), // CHH
+            ds(0.42, 0.00, 0.55, 0.20, 0.40, 0.06, 0.35, 0.35, 0.50, 0.60, 0.15, 0.10), // OHH
+            ds(0.42, 0.00, 0.55, 0.12, 0.30, 0.06, 0.35, 0.25, 0.75, 0.52, 0.15, 0.10), // Ride
+            ds(0.45, 0.25, 0.60, 0.40, 0.50, 0.10, 0.42, 0.40, 0.40, 0.68, 0.20, 0.00), // Clap
+            ds(0.48, 0.30, 0.55, 0.20, 0.40, 0.06, 0.40, 0.35, 0.38, 0.58, 0.15, 0.10), // Cowbell
+            ds(0.38, 0.50, 0.35, 0.25, 0.30, 0.08, 0.45, 0.40, 0.52, 0.70, 0.15, 0.00), // Tom
         ]),
         // Kit 7: Electro — bright, aggressive, funk-influenced
         make_kit("Electro", [
-            ds(0.30, 0.80, 0.25, 0.70, 0.85, 0.25, 0.50, 0.88, 0.05, 0.00), // Kick
-            ds(0.48, 0.15, 0.55, 0.75, 0.80, 0.25, 0.30, 0.82, 0.10, 0.00), // Snare
-            ds(0.65, 0.05, 0.45, 0.55, 0.80, 0.15, 0.07, 0.72, 0.05, 0.10), // CHH
-            ds(0.60, 0.05, 0.50, 0.45, 0.75, 0.15, 0.45, 0.68, 0.10, 0.10), // OHH
-            ds(0.65, 0.05, 0.45, 0.35, 0.70, 0.15, 0.55, 0.58, 0.10, 0.10), // Ride
-            ds(0.55, 0.20, 0.50, 0.70, 0.75, 0.20, 0.28, 0.78, 0.10, 0.00), // Clap
-            ds(0.60, 0.30, 0.40, 0.35, 0.70, 0.15, 0.30, 0.68, 0.10, 0.10), // Cowbell
-            ds(0.50, 0.80, 0.15, 0.60, 0.80, 0.20, 0.40, 0.78, 0.10, 0.00), // Tom
+            ds(0.30, 0.80, 0.25, 0.70, 0.60, 0.02, 0.85, 0.25, 0.50, 0.88, 0.05, 0.00), // Kick
+            ds(0.48, 0.15, 0.55, 0.75, 0.60, 0.03, 0.80, 0.25, 0.30, 0.82, 0.10, 0.00), // Snare
+            ds(0.65, 0.05, 0.45, 0.55, 0.30, 0.01, 0.80, 0.15, 0.07, 0.72, 0.05, 0.10), // CHH
+            ds(0.60, 0.05, 0.50, 0.45, 0.30, 0.03, 0.75, 0.15, 0.45, 0.68, 0.10, 0.10), // OHH
+            ds(0.65, 0.05, 0.45, 0.35, 0.40, 0.03, 0.70, 0.15, 0.55, 0.58, 0.10, 0.10), // Ride
+            ds(0.55, 0.20, 0.50, 0.70, 0.50, 0.04, 0.75, 0.20, 0.28, 0.78, 0.10, 0.00), // Clap
+            ds(0.60, 0.30, 0.40, 0.35, 0.30, 0.03, 0.70, 0.15, 0.30, 0.68, 0.10, 0.10), // Cowbell
+            ds(0.50, 0.80, 0.15, 0.60, 0.50, 0.03, 0.80, 0.20, 0.40, 0.78, 0.10, 0.00), // Tom
         ]),
         // Kit 8: Ambient — soft, washy, atmospheric
         make_kit("Ambient", [
-            ds(0.25, 0.40, 0.20, 0.10, 0.40, 0.05, 0.70, 0.65, 0.30, 0.00), // Kick
-            ds(0.35, 0.05, 0.60, 0.12, 0.35, 0.00, 0.55, 0.55, 0.40, 0.00), // Snare
-            ds(0.55, 0.00, 0.55, 0.10, 0.40, 0.00, 0.15, 0.45, 0.30, 0.15), // CHH
-            ds(0.48, 0.00, 0.50, 0.08, 0.38, 0.00, 0.75, 0.45, 0.40, 0.20), // OHH
-            ds(0.50, 0.00, 0.45, 0.08, 0.35, 0.00, 0.90, 0.42, 0.40, 0.20), // Ride
-            ds(0.45, 0.15, 0.55, 0.15, 0.38, 0.00, 0.55, 0.50, 0.35, 0.00), // Clap
-            ds(0.48, 0.20, 0.40, 0.10, 0.40, 0.00, 0.50, 0.45, 0.30, 0.15), // Cowbell
-            ds(0.40, 0.45, 0.15, 0.12, 0.45, 0.00, 0.65, 0.58, 0.35, 0.00), // Tom
+            ds(0.25, 0.40, 0.20, 0.10, 0.00, 0.15, 0.40, 0.05, 0.70, 0.65, 0.30, 0.00), // Kick
+            ds(0.35, 0.05, 0.60, 0.12, 0.20, 0.15, 0.35, 0.00, 0.55, 0.55, 0.40, 0.00), // Snare
+            ds(0.55, 0.00, 0.55, 0.10, 0.00, 0.05, 0.40, 0.00, 0.15, 0.45, 0.30, 0.15), // CHH
+            ds(0.48, 0.00, 0.50, 0.08, 0.10, 0.08, 0.38, 0.00, 0.75, 0.45, 0.40, 0.20), // OHH
+            ds(0.50, 0.00, 0.45, 0.08, 0.10, 0.08, 0.35, 0.00, 0.90, 0.42, 0.40, 0.20), // Ride
+            ds(0.45, 0.15, 0.55, 0.15, 0.20, 0.12, 0.38, 0.00, 0.55, 0.50, 0.35, 0.00), // Clap
+            ds(0.48, 0.20, 0.40, 0.10, 0.10, 0.06, 0.40, 0.00, 0.50, 0.45, 0.30, 0.15), // Cowbell
+            ds(0.40, 0.45, 0.15, 0.12, 0.10, 0.12, 0.45, 0.00, 0.65, 0.58, 0.35, 0.00), // Tom
         ]),
     ]
 }
@@ -586,7 +595,7 @@ fn synth_pattern_from_preset(preset_name: &str, display_name: &str) -> SynthPatt
 /// Create a demo project with 10 pre-filled genre patterns from classic drum programming.
 pub fn demo_project() -> ProjectFile {
     let patterns = vec![
-        pattern_from_preset("Around the World","Around the World 121", 121.0),
+        pattern_from_preset("Robot Rock",      "Robot Rock 110",       110.0),
         pattern_from_preset("Acid House",      "Acid Techno 138",  138.0),
         pattern_from_preset("Classic House",   "House 122",        122.0),
         pattern_from_preset("Deep House",      "Deep House 120",   120.0),
@@ -601,7 +610,7 @@ pub fn demo_project() -> ProjectFile {
     let kits = genre_kits();
 
     let synth_patterns = vec![
-        synth_pattern_from_preset("Around World Bass",   "Daft Punk Bass"),
+        synth_pattern_from_preset("Robot Rock Bass",      "Daft Punk Bass"),
         synth_pattern_from_preset("Acid Techno Bass 1",  "Acid Techno Bass"),
         synth_pattern_from_preset("House Bass 1",        "House Bass"),
         synth_pattern_from_preset("House Bass 3",        "Deep House Bass"),
@@ -613,7 +622,7 @@ pub fn demo_project() -> ProjectFile {
         synth_pattern_from_preset("Dub Techno Bass 1",   "Dub Techno Bass"),
     ];
     let synth_kits = vec![
-        synth_kit_from_preset("Electric Piano", "Electric Piano"), // Kit 0: Around the World
+        synth_kit_from_preset("Reese Bass",     "Reese Bass"),     // Kit 0: Robot Rock
         synth_kit_from_preset("Wobble Bass",  "Wobble Bass"),    // Kit 1: Acid Techno
         synth_kit_from_preset("Acid Bass",    "Acid Bass"),      // Kit 2: House
         synth_kit_from_preset("Reese Bass",   "Reese Bass"),     // Kit 3: Deep House
@@ -623,7 +632,7 @@ pub fn demo_project() -> ProjectFile {
         synth_kit_from_preset("Growl Bass",   "Growl Bass"),     // Kit 7: DnB
     ];
     let synth_b_patterns = vec![
-        synth_pattern_from_preset("Around World Lead",  "Daft Punk Lead"),
+        synth_pattern_from_preset("Robot Rock Lead",     "Daft Punk Lead"),
         synth_pattern_from_preset("Acid Techno 1",  "Acid Techno Lead"),
         synth_pattern_from_preset("House 1",        "House Keys"),
         synth_pattern_from_preset("House 3",        "Deep House Pad"),
@@ -656,7 +665,7 @@ pub fn demo_project() -> ProjectFile {
         active_kit: 0,
         patterns,
         active_pattern: 0,
-        bpm: 121.0,
+        bpm: 110.0,
         loop_length: 32,
         swing: 0.50,
         effects: EffectParams::default(),
@@ -669,7 +678,7 @@ pub fn demo_project() -> ProjectFile {
         synth_b_patterns,
         active_synth_b_pattern: 0,
         scenes: vec![
-            Some(Scene { name: "Around the World".into(), drum_pattern: 0, drum_kit: 0, synth_a_pattern: 0, synth_a_kit: 0, synth_b_pattern: 0, synth_b_kit: 0, bpm: 121.0, swing: 0.50 }),
+            Some(Scene { name: "Robot Rock".into(), drum_pattern: 0, drum_kit: 0, synth_a_pattern: 0, synth_a_kit: 0, synth_b_pattern: 0, synth_b_kit: 0, bpm: 110.0, swing: 0.50 }),
             Some(Scene { name: "Acid Techno".into(),   drum_pattern: 1, drum_kit: 0, synth_a_pattern: 1, synth_a_kit: 1, synth_b_pattern: 1, synth_b_kit: 1, bpm: 138.0, swing: 0.50 }),
             Some(Scene { name: "Classic House".into(), drum_pattern: 2, drum_kit: 3, synth_a_pattern: 2, synth_a_kit: 2, synth_b_pattern: 2, synth_b_kit: 2, bpm: 122.0, swing: 0.50 }),
             Some(Scene { name: "Deep House".into(),    drum_pattern: 3, drum_kit: 3, synth_a_pattern: 3, synth_a_kit: 3, synth_b_pattern: 3, synth_b_kit: 3, bpm: 120.0, swing: 0.50 }),
@@ -1208,7 +1217,7 @@ mod demo_tests {
     #[test]
     fn demo_patterns_have_bpm() {
         let proj = demo_project();
-        assert!((proj.patterns[0].bpm - 121.0).abs() < 0.01); // Around the World
+        assert!((proj.patterns[0].bpm - 110.0).abs() < 0.01); // Robot Rock
         assert!((proj.patterns[7].bpm - 174.0).abs() < 0.01); // D&B
         assert!((proj.patterns[9].bpm - 118.0).abs() < 0.01); // Dub Techno
     }
@@ -1228,7 +1237,7 @@ mod demo_tests {
         assert_eq!(proj.synth_kits.len(), NUM_KITS);
         assert_eq!(proj.synth_b_kits.len(), NUM_KITS);
         // Verify kits have named presets (not default names)
-        assert_eq!(proj.synth_kits[0].name, "Electric Piano");
+        assert_eq!(proj.synth_kits[0].name, "Reese Bass");
         assert_eq!(proj.synth_b_kits[0].name, "Acid Bass");
     }
 
@@ -1253,9 +1262,9 @@ mod demo_tests {
         let json = serde_json::to_string(&proj).unwrap();
         let loaded: ProjectFile = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.patterns.len(), 10);
-        assert_eq!(loaded.patterns[0].name, "Around the World 121");
-        assert!((loaded.patterns[0].bpm - 121.0).abs() < 0.01);
-        assert_eq!(loaded.synth_kits[0].name, "Electric Piano");
+        assert_eq!(loaded.patterns[0].name, "Robot Rock 110");
+        assert!((loaded.patterns[0].bpm - 110.0).abs() < 0.01);
+        assert_eq!(loaded.synth_kits[0].name, "Reese Bass");
     }
 
     /// Render all genre kit voices to WAV files for auditioning.

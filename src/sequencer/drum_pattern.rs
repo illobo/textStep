@@ -34,18 +34,20 @@ impl DrumTrackId {
 #[derive(Clone, Copy, Debug)]
 pub struct DrumTrackParams {
     // Synthesis
-    pub tune: f32,    // 0.0..=1.0  Pitch / frequency center
-    pub sweep: f32,   // 0.0..=1.0  Pitch envelope depth
-    pub color: f32,   // 0.0..=1.0  Timbre: noise/tone balance, waveform shape
-    pub snap: f32,    // 0.0..=1.0  Transient click/attack character
+    pub tune: f32,   // 0.0..=1.0  Pitch / frequency center
+    pub sweep: f32,  // 0.0..=1.0  Pitch envelope depth
+    pub color: f32,  // 0.0..=1.0  Timbre: noise/tone balance, waveform shape
+    pub snap: f32,   // 0.0..=1.0  Transient click/attack character
+    pub shape: f32,  // 0.0..=1.0  Body shape selector: tight→big boom
+    pub attack: f32, // 0.0..=1.0  Attack envelope length: short→long
 
     // Filter / Shape
-    pub filter: f32,  // 0.0..=1.0  Filter cutoff frequency
-    pub drive: f32,   // 0.0..=1.0  Saturation / overdrive
+    pub filter: f32, // 0.0..=1.0  Filter cutoff frequency
+    pub drive: f32,  // 0.0..=1.0  Saturation / overdrive
 
     // Amplitude
-    pub decay: f32,   // 0.0..=1.0  Amplitude envelope decay time
-    pub volume: f32,  // 0.0..=1.0  Track output level
+    pub decay: f32,  // 0.0..=1.0  Amplitude envelope decay time
+    pub volume: f32, // 0.0..=1.0  Track output level
 
     // Send effects (FX page)
     pub send_reverb: f32, // 0.0..=1.0  Send level to reverb
@@ -62,44 +64,140 @@ impl DrumTrackParams {
     pub fn defaults_for(track: DrumTrackId) -> Self {
         match track {
             DrumTrackId::Kick => Self {
-                tune: 0.3, sweep: 0.6, color: 0.2, snap: 0.45,
-                filter: 0.7, drive: 0.20, decay: 0.45, volume: 0.75,
-                send_reverb: 0.05, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.3,
+                sweep: 0.6,
+                color: 0.2,
+                snap: 0.45,
+                shape: 0.0,
+                attack: 0.1,
+                filter: 0.7,
+                drive: 0.20,
+                decay: 0.45,
+                volume: 0.75,
+                send_reverb: 0.05,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
             DrumTrackId::Snare => Self {
-                tune: 0.4, sweep: 0.1, color: 0.5, snap: 0.4,
-                filter: 0.5, drive: 0.1, decay: 0.4, volume: 0.75,
-                send_reverb: 0.15, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.4,
+                sweep: 0.1,
+                color: 0.5,
+                snap: 0.4,
+                shape: 0.0,
+                attack: 0.1,
+                filter: 0.5,
+                drive: 0.1,
+                decay: 0.4,
+                volume: 0.75,
+                send_reverb: 0.15,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
             DrumTrackId::ClosedHiHat => Self {
-                tune: 0.6, sweep: 0.0, color: 0.5, snap: 0.25,
-                filter: 0.6, drive: 0.0, decay: 0.1, volume: 0.65,
-                send_reverb: 0.05, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.6,
+                sweep: 0.0,
+                color: 0.5,
+                snap: 0.25,
+                shape: 0.0,
+                attack: 0.05,
+                filter: 0.6,
+                drive: 0.0,
+                decay: 0.1,
+                volume: 0.65,
+                send_reverb: 0.05,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
             DrumTrackId::OpenHiHat => Self {
-                tune: 0.5, sweep: 0.6, color: 0.3, snap: 0.25,
-                filter: 0.5, drive: 0.0, decay: 0.5, volume: 0.65,
-                send_reverb: 0.1, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.5,
+                sweep: 0.6,
+                color: 0.3,
+                snap: 0.25,
+                shape: 0.0,
+                attack: 0.08,
+                filter: 0.5,
+                drive: 0.0,
+                decay: 0.5,
+                volume: 0.65,
+                send_reverb: 0.1,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
             DrumTrackId::Ride => Self {
-                tune: 0.5, sweep: 0.0, color: 0.5, snap: 0.1,
-                filter: 0.4, drive: 0.0, decay: 0.7, volume: 0.6,
-                send_reverb: 0.1, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.5,
+                sweep: 0.0,
+                color: 0.5,
+                snap: 0.1,
+                shape: 0.0,
+                attack: 0.08,
+                filter: 0.4,
+                drive: 0.0,
+                decay: 0.7,
+                volume: 0.6,
+                send_reverb: 0.1,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
             DrumTrackId::Clap => Self {
-                tune: 0.5, sweep: 0.3, color: 0.5, snap: 0.5,
-                filter: 0.5, drive: 0.1, decay: 0.4, volume: 0.7,
-                send_reverb: 0.2, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.5,
+                sweep: 0.3,
+                color: 0.5,
+                snap: 0.5,
+                shape: 0.0,
+                attack: 0.12,
+                filter: 0.5,
+                drive: 0.1,
+                decay: 0.4,
+                volume: 0.7,
+                send_reverb: 0.2,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
             DrumTrackId::Cowbell => Self {
-                tune: 0.5, sweep: 0.3, color: 0.5, snap: 0.2,
-                filter: 0.5, drive: 0.1, decay: 0.4, volume: 0.7,
-                send_reverb: 0.1, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.5,
+                sweep: 0.3,
+                color: 0.5,
+                snap: 0.2,
+                shape: 0.0,
+                attack: 0.1,
+                filter: 0.5,
+                drive: 0.1,
+                decay: 0.4,
+                volume: 0.7,
+                send_reverb: 0.1,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
             DrumTrackId::Tom => Self {
-                tune: 0.5, sweep: 0.5, color: 0.1, snap: 0.3,
-                filter: 0.8, drive: 0.1, decay: 0.5, volume: 0.8,
-                send_reverb: 0.1, send_delay: 0.0, pan: 0.5, mute: false, solo: false,
+                tune: 0.5,
+                sweep: 0.5,
+                color: 0.1,
+                snap: 0.3,
+                shape: 0.0,
+                attack: 0.1,
+                filter: 0.8,
+                drive: 0.1,
+                decay: 0.5,
+                volume: 0.8,
+                send_reverb: 0.1,
+                send_delay: 0.0,
+                pan: 0.5,
+                mute: false,
+                solo: false,
             },
         }
     }
@@ -112,6 +210,8 @@ impl Default for DrumTrackParams {
             sweep: 0.3,
             color: 0.5,
             snap: 0.3,
+            shape: 0.0,
+            attack: 0.1,
             filter: 0.5,
             drive: 0.0,
             decay: 0.5,

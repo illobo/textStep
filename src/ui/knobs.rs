@@ -1,19 +1,19 @@
 //! Drum parameter panel: vertical slider bars for the selected track's sound parameters.
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::Frame;
 
 use crate::app::{App, FocusSection, KNOB_FIELDS};
 use crate::sequencer::drum_pattern::TRACK_IDS;
 use crate::ui::theme;
 
-/// Full labels for the 11 slider columns.
-const SLIDER_LABELS: [&str; 11] = [
-    "Tune", "Sweep", "Color", "Snap", "Filter",
-    "Drive", "Decay", "Volume", "Reverb", "Delay", "Pan",
+/// Full labels for the 13 slider columns.
+const SLIDER_LABELS: [&str; 13] = [
+    "Tune", "Sweep", "Color", "Snap", "Shape", "Attack", "Filter", "Drive", "Decay", "Volume",
+    "Reverb", "Delay", "Pan",
 ];
 
 /// Number of vertical bar rows in each slider.
@@ -33,7 +33,11 @@ pub fn render_knobs(f: &mut Frame, area: Rect, app: &App) {
 
     let block = Block::default()
         .title(title)
-        .title_style(Style::default().fg(theme::PINK).add_modifier(Modifier::BOLD))
+        .title_style(
+            Style::default()
+                .fg(theme::PINK)
+                .add_modifier(Modifier::BOLD),
+        )
         .borders(Borders::ALL)
         .border_type(BorderType::Thick)
         .border_style(border_style);
@@ -47,9 +51,19 @@ pub fn render_knobs(f: &mut Frame, area: Rect, app: &App) {
     }
 
     let num_knobs = KNOB_FIELDS.len();
-    let values: [f32; 11] = [
-        params.tune, params.sweep, params.color, params.snap, params.filter,
-        params.drive, params.decay, params.volume, params.send_reverb, params.send_delay,
+    let values: [f32; 13] = [
+        params.tune,
+        params.sweep,
+        params.color,
+        params.snap,
+        params.shape,
+        params.attack,
+        params.filter,
+        params.drive,
+        params.decay,
+        params.volume,
+        params.send_reverb,
+        params.send_delay,
         params.pan,
     ];
 
@@ -85,7 +99,11 @@ pub fn render_knobs(f: &mut Frame, area: Rect, app: &App) {
 
             let (ch, fg, bg) = if value > threshold {
                 // Filled segment
-                let fill_color = if is_selected { theme::PINK } else { theme::AMBER };
+                let fill_color = if is_selected {
+                    theme::PINK
+                } else {
+                    theme::AMBER
+                };
                 (theme::GAUGE_FILLED, fill_color, theme::BG)
             } else {
                 // Empty segment

@@ -31,6 +31,18 @@ pub static PATTERN_PRESETS: &[PatternPreset] = &[
     PatternPreset { name: "Giorgio", genre: "Daft Punk",
         steps: ["88880000", "08080000", "ffff0000", "22220000", "00000000", "00000000", "00000000", "00000000"] },
 
+    // ── Classics ────────────────────────────────────────────────────────
+    PatternPreset { name: "Blue Monday", genre: "Classics",
+        steps: ["88880000", "08080000", "aaaa0000", "01010000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "I Feel Love", genre: "Classics",
+        steps: ["88880000", "08080000", "ffff0000", "00000000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Firestarter", genre: "Classics",
+        steps: ["88a80000", "08080000", "aaaa0000", "01000000", "00000000", "08080000", "00000000", "00000000"] },
+    PatternPreset { name: "Born Slippy", genre: "Classics",
+        steps: ["88880000", "08080000", "ffff0000", "04040000", "00000000", "00000000", "00000000", "00000000"] },
+    PatternPreset { name: "Im Blue", genre: "Classics",
+        steps: ["88880000", "00000000", "aaaa0000", "10100000", "00000000", "08080000", "00000000", "00000000"] },
+
     // ── Basics ──────────────────────────────────────────────────────────
     // Progressive building blocks: offbeat hats (3,7,11,15) for proper techno feel
     PatternPreset { name: "Kick Only", genre: "Basics",

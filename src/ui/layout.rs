@@ -97,9 +97,9 @@ pub fn compute_dual_layout(total: Rect, vis: &PanelVisibility) -> DualSynthLayou
         PanelSlot { expanded_height: SYNTH_GRID_HEIGHT,   is_visible: vis.synth_a_grid,  growable: false },
         PanelSlot { expanded_height: SYNTH_KNOBS_HEIGHT,  is_visible: vis.synth_b_knobs, growable: false },
         PanelSlot { expanded_height: SYNTH_GRID_HEIGHT,   is_visible: vis.synth_b_grid,  growable: false },
-        PanelSlot { expanded_height: DRUM_GRID_MIN_HEIGHT, is_visible: vis.drum_grid,    growable: true  },
+        PanelSlot { expanded_height: DRUM_GRID_MIN_HEIGHT, is_visible: vis.drum_grid,    growable: false },
         PanelSlot { expanded_height: DRUM_KNOBS_HEIGHT,   is_visible: vis.drum_knobs,    growable: false },
-        PanelSlot { expanded_height: WAVEFORM_HEIGHT,     is_visible: vis.waveform,      growable: false },
+        PanelSlot { expanded_height: WAVEFORM_HEIGHT,     is_visible: vis.waveform,      growable: true  },
     ];
 
     // Make a mutable copy of visibility so we can auto-collapse on overflow
@@ -293,8 +293,8 @@ mod tests {
         let ly_exp = compute_dual_layout(term(h), &vis_expanded);
         let ly_col = compute_dual_layout(term(h), &vis_collapsed);
 
-        // Drum grid should be bigger when synth B is collapsed
-        assert!(ly_col.drum_grid.height > ly_exp.drum_grid.height);
+        // Waveform should be bigger when synth B is collapsed (it's the growable panel)
+        assert!(ly_col.waveform.height > ly_exp.waveform.height);
     }
 
     #[test]

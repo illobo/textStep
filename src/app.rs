@@ -21,10 +21,10 @@ use crate::sequencer::transport::Transport;
 pub enum FocusSection {
     DrumGrid,
     Knobs,
-    SynthAGrid,      // was: SynthGrid
-    SynthAControls,  // was: SynthControls
-    SynthBGrid,      // new
-    SynthBControls,  // new
+    SynthAGrid,     // was: SynthGrid
+    SynthAControls, // was: SynthControls
+    SynthBGrid,     // new
+    SynthBControls, // new
     Transport,
 }
 
@@ -32,8 +32,13 @@ impl FocusSection {
     pub fn next(&self, vis: &PanelVisibility) -> Self {
         use FocusSection::*;
         let order = [
-            Transport, SynthAControls, SynthAGrid,
-            SynthBControls, SynthBGrid, DrumGrid, Knobs,
+            Transport,
+            SynthAControls,
+            SynthAGrid,
+            SynthBControls,
+            SynthBGrid,
+            DrumGrid,
+            Knobs,
         ];
         let cur = order.iter().position(|s| s == self).unwrap_or(0);
         for i in 1..=order.len() {
@@ -48,8 +53,13 @@ impl FocusSection {
     pub fn prev(&self, vis: &PanelVisibility) -> Self {
         use FocusSection::*;
         let order = [
-            Transport, SynthAControls, SynthAGrid,
-            SynthBControls, SynthBGrid, DrumGrid, Knobs,
+            Transport,
+            SynthAControls,
+            SynthAGrid,
+            SynthBControls,
+            SynthBGrid,
+            DrumGrid,
+            Knobs,
         ];
         let cur = order.iter().position(|s| s == self).unwrap_or(0);
         for i in 1..=order.len() {
@@ -107,6 +117,8 @@ pub enum DrumControlField {
     Sweep,
     Color,
     Snap,
+    Shape,
+    Attack,
     // Amp page
     Filter,
     Drive,
@@ -121,12 +133,14 @@ pub enum DrumControlField {
     Solo,
 }
 
-/// All 11 continuous params in knobs panel order.
-pub const KNOB_FIELDS: [DrumControlField; 11] = [
+/// All 13 continuous params in knobs panel order.
+pub const KNOB_FIELDS: [DrumControlField; 13] = [
     DrumControlField::Tune,
     DrumControlField::Sweep,
     DrumControlField::Color,
     DrumControlField::Snap,
+    DrumControlField::Shape,
+    DrumControlField::Attack,
     DrumControlField::Filter,
     DrumControlField::Drive,
     DrumControlField::Decay,
@@ -161,7 +175,9 @@ impl DrumControlField {
     #[allow(dead_code)]
     pub fn page(self) -> Option<ParamPage> {
         match self {
-            Self::Tune | Self::Sweep | Self::Color | Self::Snap => Some(ParamPage::Synth),
+            Self::Tune | Self::Sweep | Self::Color | Self::Snap | Self::Shape | Self::Attack => {
+                Some(ParamPage::Synth)
+            }
             Self::Filter | Self::Drive | Self::Decay | Self::Volume => Some(ParamPage::Amp),
             Self::SendReverb | Self::SendDelay | Self::Pan => Some(ParamPage::Fx),
             Self::Mute | Self::Solo => None,
@@ -171,9 +187,31 @@ impl DrumControlField {
     /// Fields visible on the given page, in order.
     pub fn fields_for_page(page: ParamPage) -> &'static [DrumControlField] {
         match page {
-            ParamPage::Synth => &[Self::Tune, Self::Sweep, Self::Color, Self::Snap, Self::Mute, Self::Solo],
-            ParamPage::Amp => &[Self::Filter, Self::Drive, Self::Decay, Self::Volume, Self::Mute, Self::Solo],
-            ParamPage::Fx => &[Self::SendReverb, Self::SendDelay, Self::Pan, Self::Mute, Self::Solo],
+            ParamPage::Synth => &[
+                Self::Tune,
+                Self::Sweep,
+                Self::Color,
+                Self::Snap,
+                Self::Shape,
+                Self::Attack,
+                Self::Mute,
+                Self::Solo,
+            ],
+            ParamPage::Amp => &[
+                Self::Filter,
+                Self::Drive,
+                Self::Decay,
+                Self::Volume,
+                Self::Mute,
+                Self::Solo,
+            ],
+            ParamPage::Fx => &[
+                Self::SendReverb,
+                Self::SendDelay,
+                Self::Pan,
+                Self::Mute,
+                Self::Solo,
+            ],
         }
     }
 
@@ -278,7 +316,9 @@ impl SplashState {
                     *row += *speed;
                     // Cycle the character
                     *ch = (*ch).wrapping_add(1);
-                    if *ch < 33 || *ch > 126 { *ch = 33; }
+                    if *ch < 33 || *ch > 126 {
+                        *ch = 33;
+                    }
                     // Mark cells as revealed up to current row
                     let cur_row = *row as usize;
                     if cur_row < h {
@@ -462,9 +502,9 @@ pub struct PanelVisibility {
 impl Default for PanelVisibility {
     fn default() -> Self {
         Self {
-            synth_a_knobs: false,  // Knobs collapsed by default
+            synth_a_knobs: false, // Knobs collapsed by default
             synth_a_grid: true,
-            synth_b_knobs: false,  // Knobs collapsed by default
+            synth_b_knobs: false, // Knobs collapsed by default
             synth_b_grid: true,
             drum_grid: true,
             drum_knobs: true,
@@ -606,16 +646,26 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(tx: Sender<UiToAudio>, rx: Receiver<AudioToUi>, display_buf: Arc<AudioDisplayBuffer>) -> Self {
+    pub fn new(
+        tx: Sender<UiToAudio>,
+        rx: Receiver<AudioToUi>,
+        display_buf: Arc<AudioDisplayBuffer>,
+    ) -> Self {
         let project = project::demo_project();
 
         // Use first scene if available, otherwise default to index 0
         let (dp, dk, sap, sak, sbp, sbk, scene_bpm, scene_swing) =
             if let Some(Some(scene)) = project.scenes.first() {
-                (scene.drum_pattern, scene.drum_kit,
-                 scene.synth_a_pattern, scene.synth_a_kit,
-                 scene.synth_b_pattern, scene.synth_b_kit,
-                 Some(scene.bpm), Some(scene.swing))
+                (
+                    scene.drum_pattern,
+                    scene.drum_kit,
+                    scene.synth_a_pattern,
+                    scene.synth_a_kit,
+                    scene.synth_b_pattern,
+                    scene.synth_b_kit,
+                    Some(scene.bpm),
+                    Some(scene.swing),
+                )
             } else {
                 (0, 0, 0, 0, 0, 0, None, None)
             };
@@ -649,8 +699,14 @@ impl App {
         // Send initial state to audio thread so it has the pattern from the start
         let _ = tx.send(UiToAudio::SetTransport(transport));
         let _ = tx.send(UiToAudio::SetDrumPattern(drum_pattern.clone()));
-        let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::A, synth_a_pattern.clone()));
-        let _ = tx.send(UiToAudio::SetSynthPattern(SynthId::B, synth_b_pattern.clone()));
+        let _ = tx.send(UiToAudio::SetSynthPattern(
+            SynthId::A,
+            synth_a_pattern.clone(),
+        ));
+        let _ = tx.send(UiToAudio::SetSynthPattern(
+            SynthId::B,
+            synth_b_pattern.clone(),
+        ));
         let _ = tx.send(UiToAudio::SetEffectParams(EffectParams::default()));
 
         let mut ui = UiState::default();
@@ -829,7 +885,9 @@ impl App {
 
     /// Send current transport state to the audio thread.
     pub fn send_transport(&self) {
-        let _ = self.tx_to_audio.send(UiToAudio::SetTransport(self.transport));
+        let _ = self
+            .tx_to_audio
+            .send(UiToAudio::SetTransport(self.transport));
     }
 
     /// Send the full drum pattern to the audio thread.
@@ -859,7 +917,9 @@ impl App {
 
     /// Get the name of the current active pattern.
     pub fn current_pattern_name(&self) -> &str {
-        self.project.patterns.get(self.ui.active_pattern)
+        self.project
+            .patterns
+            .get(self.ui.active_pattern)
             .map(|p| p.name.as_str())
             .unwrap_or("?")
     }
@@ -889,7 +949,8 @@ impl App {
     fn store_current_to_project(&mut self) {
         let idx = self.ui.active_pattern;
         self.project.save_pattern_steps(idx, &self.drum_pattern);
-        self.project.save_kit_from_pattern(self.ui.active_kit, &self.drum_pattern);
+        self.project
+            .save_kit_from_pattern(self.ui.active_kit, &self.drum_pattern);
         self.project.active_kit = self.ui.active_kit;
         self.project.bpm = self.transport.bpm;
         self.project.loop_length = self.transport.loop_config.drum_length;
@@ -900,8 +961,10 @@ impl App {
             pat.bpm = self.transport.bpm;
         }
         // Save synth pattern and kit
-        self.project.save_synth_pattern(self.ui.synth_a.active_pattern, &self.synth_a_pattern);
-        self.project.save_synth_kit(self.ui.synth_a.active_kit, &self.synth_a_pattern.params);
+        self.project
+            .save_synth_pattern(self.ui.synth_a.active_pattern, &self.synth_a_pattern);
+        self.project
+            .save_synth_kit(self.ui.synth_a.active_kit, &self.synth_a_pattern.params);
         self.project.active_synth_pattern = self.ui.synth_a.active_pattern;
         self.project.active_synth_kit = self.ui.synth_a.active_kit;
     }
@@ -915,7 +978,9 @@ impl App {
 
     /// Save the current state as a scene in the given slot.
     pub fn save_scene(&mut self, slot: usize) {
-        if slot >= project::NUM_SCENES { return; }
+        if slot >= project::NUM_SCENES {
+            return;
+        }
         let scene = project::Scene {
             name: format!("Scene {}", slot + 1),
             drum_pattern: self.ui.active_pattern,
@@ -981,7 +1046,9 @@ impl App {
 
     /// Switch to a different pattern immediately.
     pub fn switch_pattern(&mut self, index: usize) {
-        if index >= NUM_PATTERNS { return; }
+        if index >= NUM_PATTERNS {
+            return;
+        }
         // Save current pattern first
         self.store_current_to_project();
         // Load new pattern
@@ -989,7 +1056,8 @@ impl App {
         self.project.active_pattern = index;
         // Clear steps and load from project
         self.drum_pattern.steps = [[false; 32]; NUM_DRUM_TRACKS];
-        self.project.load_pattern_steps(index, &mut self.drum_pattern);
+        self.project
+            .load_pattern_steps(index, &mut self.drum_pattern);
         self.send_drum_pattern();
         // Apply per-pattern BPM if set
         if let Some(pat) = self.project.patterns.get(index) {
@@ -1002,7 +1070,9 @@ impl App {
 
     /// Queue a pattern to switch at end of current loop.
     pub fn queue_pattern(&mut self, index: usize) {
-        if index >= NUM_PATTERNS { return; }
+        if index >= NUM_PATTERNS {
+            return;
+        }
         if index == self.ui.active_pattern {
             // Pressing the same pattern cancels the queue
             self.ui.queued_pattern = None;
@@ -1015,26 +1085,34 @@ impl App {
 
     /// Switch to a different synth pattern immediately.
     pub fn switch_synth_pattern(&mut self, index: usize) {
-        if index >= NUM_PATTERNS { return; }
+        if index >= NUM_PATTERNS {
+            return;
+        }
         // Save current synth pattern first
-        self.project.save_synth_pattern(self.ui.synth_a.active_pattern, &self.synth_a_pattern);
+        self.project
+            .save_synth_pattern(self.ui.synth_a.active_pattern, &self.synth_a_pattern);
         // Load new synth pattern
         self.ui.synth_a.active_pattern = index;
         self.project.active_synth_pattern = index;
         self.synth_a_pattern = SynthPattern::default();
-        self.project.load_synth_pattern(index, &mut self.synth_a_pattern);
+        self.project
+            .load_synth_pattern(index, &mut self.synth_a_pattern);
         self.send_synth_pattern(SynthId::A);
     }
 
     /// Switch to a different synth kit immediately.
     pub fn switch_synth_kit(&mut self, index: usize) {
-        if index >= NUM_KITS { return; }
+        if index >= NUM_KITS {
+            return;
+        }
         // Save current synth kit params back
-        self.project.save_synth_kit(self.ui.synth_a.active_kit, &self.synth_a_pattern.params);
+        self.project
+            .save_synth_kit(self.ui.synth_a.active_kit, &self.synth_a_pattern.params);
         // Load new synth kit
         self.ui.synth_a.active_kit = index;
         self.project.active_synth_kit = index;
-        self.project.load_synth_kit(index, &mut self.synth_a_pattern);
+        self.project
+            .load_synth_kit(index, &mut self.synth_a_pattern);
         self.send_synth_pattern(SynthId::A);
     }
 
@@ -1042,22 +1120,28 @@ impl App {
 
     /// Switch to a different synth pattern for the specified synth.
     pub fn switch_synth_pattern_for(&mut self, synth_id: SynthId, index: usize) {
-        if index >= NUM_PATTERNS { return; }
+        if index >= NUM_PATTERNS {
+            return;
+        }
         match synth_id {
             SynthId::A => {
-                self.project.save_synth_pattern(self.ui.synth_a.active_pattern, &self.synth_a_pattern);
+                self.project
+                    .save_synth_pattern(self.ui.synth_a.active_pattern, &self.synth_a_pattern);
                 self.ui.synth_a.active_pattern = index;
                 self.project.active_synth_pattern = index;
                 self.synth_a_pattern = SynthPattern::default();
-                self.project.load_synth_pattern(index, &mut self.synth_a_pattern);
+                self.project
+                    .load_synth_pattern(index, &mut self.synth_a_pattern);
                 self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
-                self.project.save_synth_b_pattern(self.ui.synth_b.active_pattern, &self.synth_b_pattern);
+                self.project
+                    .save_synth_b_pattern(self.ui.synth_b.active_pattern, &self.synth_b_pattern);
                 self.ui.synth_b.active_pattern = index;
                 self.project.active_synth_b_pattern = index;
                 self.synth_b_pattern = SynthPattern::default();
-                self.project.load_synth_b_pattern(index, &mut self.synth_b_pattern);
+                self.project
+                    .load_synth_b_pattern(index, &mut self.synth_b_pattern);
                 self.send_synth_pattern(SynthId::B);
             }
         }
@@ -1065,7 +1149,9 @@ impl App {
 
     /// Queue a synth pattern for the specified synth.
     pub fn queue_synth_pattern_for(&mut self, synth_id: SynthId, index: usize) {
-        if index >= NUM_PATTERNS { return; }
+        if index >= NUM_PATTERNS {
+            return;
+        }
         let ui = match synth_id {
             SynthId::A => &mut self.ui.synth_a,
             SynthId::B => &mut self.ui.synth_b,
@@ -1079,20 +1165,26 @@ impl App {
 
     /// Switch to a different synth kit for the specified synth.
     pub fn switch_synth_kit_for(&mut self, synth_id: SynthId, index: usize) {
-        if index >= NUM_KITS { return; }
+        if index >= NUM_KITS {
+            return;
+        }
         match synth_id {
             SynthId::A => {
-                self.project.save_synth_kit(self.ui.synth_a.active_kit, &self.synth_a_pattern.params);
+                self.project
+                    .save_synth_kit(self.ui.synth_a.active_kit, &self.synth_a_pattern.params);
                 self.ui.synth_a.active_kit = index;
                 self.project.active_synth_kit = index;
-                self.project.load_synth_kit(index, &mut self.synth_a_pattern);
+                self.project
+                    .load_synth_kit(index, &mut self.synth_a_pattern);
                 self.send_synth_pattern(SynthId::A);
             }
             SynthId::B => {
-                self.project.save_synth_b_kit(self.ui.synth_b.active_kit, &self.synth_b_pattern.params);
+                self.project
+                    .save_synth_b_kit(self.ui.synth_b.active_kit, &self.synth_b_pattern.params);
                 self.ui.synth_b.active_kit = index;
                 self.project.active_synth_b_kit = index;
-                self.project.load_synth_b_kit(index, &mut self.synth_b_pattern);
+                self.project
+                    .load_synth_b_kit(index, &mut self.synth_b_pattern);
                 self.send_synth_pattern(SynthId::B);
             }
         }
@@ -1115,7 +1207,8 @@ impl App {
             match project::save_project(&self.project, path) {
                 Ok(()) => {
                     self.dirty = false;
-                    let name = path.file_stem()
+                    let name = path
+                        .file_stem()
                         .and_then(|s| s.to_str())
                         .unwrap_or("project")
                         .to_string();
@@ -1165,19 +1258,25 @@ impl App {
 
     /// Switch to a different kit immediately.
     pub fn switch_kit(&mut self, index: usize) {
-        if index >= NUM_KITS { return; }
+        if index >= NUM_KITS {
+            return;
+        }
         // Save current kit params back
-        self.project.save_kit_from_pattern(self.ui.active_kit, &self.drum_pattern);
+        self.project
+            .save_kit_from_pattern(self.ui.active_kit, &self.drum_pattern);
         // Load new kit
         self.ui.active_kit = index;
         self.project.active_kit = index;
-        self.project.apply_kit_to_pattern(index, &mut self.drum_pattern);
+        self.project
+            .apply_kit_to_pattern(index, &mut self.drum_pattern);
         self.send_drum_pattern();
     }
 
     /// Get the name of the current active kit.
     pub fn current_kit_name(&self) -> &str {
-        self.project.kits.get(self.ui.active_kit)
+        self.project
+            .kits
+            .get(self.ui.active_kit)
             .map(|k| k.name.as_str())
             .unwrap_or("?")
     }
@@ -1235,7 +1334,8 @@ impl App {
                 let name = kit.name.clone();
                 let idx = self.ui.active_kit;
                 self.project.kits[idx] = kit;
-                self.project.apply_kit_to_pattern(idx, &mut self.drum_pattern);
+                self.project
+                    .apply_kit_to_pattern(idx, &mut self.drum_pattern);
                 self.send_drum_pattern();
                 self.dirty = true;
                 self.show_status(format!("Kit loaded: {}", name));
@@ -1247,7 +1347,13 @@ impl App {
     // ── Preset Browser ─────────────────────────────────────────────────
 
     pub fn open_preset_browser(&mut self) {
-        let is_synth = matches!(self.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls | FocusSection::SynthBGrid | FocusSection::SynthBControls);
+        let is_synth = matches!(
+            self.ui.focus,
+            FocusSection::SynthAGrid
+                | FocusSection::SynthAControls
+                | FocusSection::SynthBGrid
+                | FocusSection::SynthBControls
+        );
         let mut browser = if is_synth {
             crate::presets::PresetBrowserState::for_synth()
         } else {
@@ -1263,7 +1369,11 @@ impl App {
         self.ui.modal = ModalState::PresetBrowser(browser);
     }
 
-    pub fn apply_drum_preset(&mut self, track: usize, params: crate::sequencer::project::DrumSoundParams) {
+    pub fn apply_drum_preset(
+        &mut self,
+        track: usize,
+        params: crate::sequencer::project::DrumSoundParams,
+    ) {
         let tp = params.to_track_params();
         let mute = self.drum_pattern.params[track].mute;
         let solo = self.drum_pattern.params[track].solo;
@@ -1275,7 +1385,13 @@ impl App {
     }
 
     pub fn open_pattern_browser(&mut self) {
-        let is_synth = matches!(self.ui.focus, FocusSection::SynthAGrid | FocusSection::SynthAControls | FocusSection::SynthBGrid | FocusSection::SynthBControls);
+        let is_synth = matches!(
+            self.ui.focus,
+            FocusSection::SynthAGrid
+                | FocusSection::SynthAControls
+                | FocusSection::SynthBGrid
+                | FocusSection::SynthBControls
+        );
         let mut pb = if is_synth {
             crate::presets::PatternBrowserState::new_synth()
         } else {
@@ -1311,10 +1427,14 @@ impl App {
                 let src = hex_to_steps(hex);
 
                 // Find the effective length of the source pattern (last active step)
-                let src_len = src.iter().rposition(|&s| s).map_or(16, |i| {
-                    // Round up to nearest 8-step boundary
-                    ((i / 8) + 1) * 8
-                }).min(MAX_STEPS);
+                let src_len = src
+                    .iter()
+                    .rposition(|&s| s)
+                    .map_or(16, |i| {
+                        // Round up to nearest 8-step boundary
+                        ((i / 8) + 1) * 8
+                    })
+                    .min(MAX_STEPS);
 
                 // Build the tiled pattern
                 let mut tiled = [false; MAX_STEPS];
@@ -1346,7 +1466,7 @@ impl App {
         preset_steps: &[(u8, u8, u8); crate::sequencer::synth_pattern::MAX_STEPS],
         merge: crate::presets::PatternMergeMode,
     ) {
-        use crate::sequencer::synth_pattern::{MAX_STEPS, SynthStep};
+        use crate::sequencer::synth_pattern::{SynthStep, MAX_STEPS};
 
         let pattern = match synth_id {
             SynthId::A => &mut self.synth_a_pattern,
@@ -1360,20 +1480,30 @@ impl App {
         };
 
         // Find effective source length (last non-rest step, rounded to 8)
-        let src_len = preset_steps.iter().rposition(|s| s.1 > 0).map_or(16, |i| {
-            ((i / 8) + 1) * 8
-        }).min(MAX_STEPS);
+        let src_len = preset_steps
+            .iter()
+            .rposition(|s| s.1 > 0)
+            .map_or(16, |i| ((i / 8) + 1) * 8)
+            .min(MAX_STEPS);
 
         for s in 0..fill_len {
             let (note, vel, len) = preset_steps[s % src_len];
             if vel > 0 {
                 match merge {
                     crate::presets::PatternMergeMode::Replace => {
-                        pattern.steps[s] = SynthStep { note, velocity: vel, length: len };
+                        pattern.steps[s] = SynthStep {
+                            note,
+                            velocity: vel,
+                            length: len,
+                        };
                     }
                     crate::presets::PatternMergeMode::Layer => {
                         if !pattern.steps[s].is_active() {
-                            pattern.steps[s] = SynthStep { note, velocity: vel, length: len };
+                            pattern.steps[s] = SynthStep {
+                                note,
+                                velocity: vel,
+                                length: len,
+                            };
                         }
                     }
                 }
@@ -1385,7 +1515,11 @@ impl App {
         self.dirty = true;
     }
 
-    pub fn apply_synth_preset(&mut self, synth_id: SynthId, params: crate::sequencer::synth_pattern::SynthParams) {
+    pub fn apply_synth_preset(
+        &mut self,
+        synth_id: SynthId,
+        params: crate::sequencer::synth_pattern::SynthParams,
+    ) {
         let pattern = match synth_id {
             SynthId::A => &mut self.synth_a_pattern,
             SynthId::B => &mut self.synth_b_pattern,
@@ -1417,7 +1551,8 @@ impl App {
                 let idx = self.project.active_pattern;
                 self.ui.active_pattern = idx;
                 self.drum_pattern = DrumPattern::default();
-                self.project.apply_kit_to_pattern(kit_idx, &mut self.drum_pattern);
+                self.project
+                    .apply_kit_to_pattern(kit_idx, &mut self.drum_pattern);
                 self.project.load_pattern_steps(idx, &mut self.drum_pattern);
                 self.send_drum_pattern();
 
@@ -1428,8 +1563,10 @@ impl App {
                 self.ui.synth_a.active_pattern = self.project.active_synth_pattern;
                 self.ui.synth_a.active_kit = self.project.active_synth_kit;
                 self.synth_a_pattern = SynthPattern::default();
-                self.project.load_synth_pattern(self.ui.synth_a.active_pattern, &mut self.synth_a_pattern);
-                self.project.load_synth_kit(self.ui.synth_a.active_kit, &mut self.synth_a_pattern);
+                self.project
+                    .load_synth_pattern(self.ui.synth_a.active_pattern, &mut self.synth_a_pattern);
+                self.project
+                    .load_synth_kit(self.ui.synth_a.active_kit, &mut self.synth_a_pattern);
                 self.send_synth_pattern(SynthId::A);
 
                 self.dirty = false;
